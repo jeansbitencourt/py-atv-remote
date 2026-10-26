@@ -11,9 +11,11 @@ from androidtvremote2 import VolumeInfo
 from py_atv_remote.domain.errors import PairingRequiredError, TvNotFoundError, TvUnreachableError
 from py_atv_remote.domain.keys import RemoteKey
 from py_atv_remote.domain.models import ConnectionState, TvProfile, VolumeState
+from py_atv_remote.infrastructure.arp import lookup_mac_for_ip
 from py_atv_remote.infrastructure.atv_client import AndroidTvClientAdapter, RemoteClient
 from py_atv_remote.infrastructure.cert_store import CertStore
 from py_atv_remote.infrastructure.config_store import ConfigStore
+from py_atv_remote.infrastructure.wol import send_wol
 from py_atv_remote.services.events import EventBus
 
 LOGGER = logging.getLogger(__name__)
@@ -34,7 +36,7 @@ class RemoteSessionService:
         self._cert_store = cert_store
         self._event_bus = event_bus
         self._client_factory = client_factory or self._default_client_factory
-        self._wol_sender = wol_sender
+        self._wol_sender = wol_sender or send_wol
 
         self._current_profile: TvProfile | None = None
         self._state: ConnectionState = ConnectionState.IDLE
@@ -121,6 +123,15 @@ class RemoteSessionService:
                 self._cert_store.secure_permissions(profile.id)
                 self._set_state(ConnectionState.CONNECTED)
                 LOGGER.info("Connected to TV '%s' (%s)", profile.name, profile.host)
+
+                # Learn hardware WoL MAC from ARP table if missing
+                if not profile.wol_mac:
+                    learned_mac = lookup_mac_for_ip(profile.host)
+                    if learned_mac:
+                        LOGGER.info("Learned WoL MAC for '%s': %s", profile.name, learned_mac)
+                        profile = profile.with_wol_mac(learned_mac)
+                        self._current_profile = profile
+                        self._config_store.save_tv(profile)
             except PairingRequiredError:
                 LOGGER.warning("TV '%s' rejected auth; pairing required.", profile.name)
                 self._set_state(ConnectionState.NEEDS_PAIRING)
@@ -193,7 +204,7 @@ class RemoteSessionService:
             self.send_key(RemoteKey.POWER)
             return
 
-        if self._current_profile and self._current_profile.wol_mac and self._wol_sender:
+        if self._current_profile and self._current_profile.wol_mac:
             LOGGER.info(
                 "TV is offline. Sending Wake-on-LAN to %s...",
                 self._current_profile.wol_mac,
