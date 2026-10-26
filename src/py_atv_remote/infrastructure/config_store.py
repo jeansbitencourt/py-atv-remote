@@ -24,14 +24,15 @@ DEFAULT_APP_SHORTCUTS: list[AppShortcut] = [
     AppShortcut(label="Netflix", link="https://www.netflix.com/title"),
     AppShortcut(label="Prime Video", link="https://app.primevideo.com"),
     AppShortcut(label="Disney+", link="https://www.disneyplus.com"),
-    AppShortcut(label="Globoplay", link="https://globoplay.globo.com"),
+    AppShortcut(label="Crunchyroll", link="https://www.crunchyroll.com"),
+    AppShortcut(label="HBO Max", link="https://play.max.com"),
 ]
 
 
 class ConfigStore:
     """Manages reading, modifying, and atomically persisting application configuration."""
 
-    CURRENT_SCHEMA_VERSION = 1
+    CURRENT_SCHEMA_VERSION = 2
 
     def __init__(self, paths: AppPaths) -> None:
         self._paths = paths
@@ -87,15 +88,25 @@ class ConfigStore:
             return fallback
 
     def _migrate(self, data: dict[str, Any]) -> dict[str, Any]:
-        version = data.get("schema_version", 1)
-        # Placeholder for future schema migrations
-        if version == 1:
-            data.setdefault(
-                "app_shortcuts",
-                [{"label": item.label, "link": item.link} for item in DEFAULT_APP_SHORTCUTS],
-            )
+        version = int(data.get("schema_version", 1))
+        if version < 2:
             data.setdefault("ui", {"always_on_top": False})
             data.setdefault("tvs", {})
+            existing = data.get("app_shortcuts")
+            if not existing or not isinstance(existing, list):
+                data["app_shortcuts"] = [
+                    {"label": item.label, "link": item.link} for item in DEFAULT_APP_SHORTCUTS
+                ]
+            else:
+                old_labels = [
+                    s.get("label") for s in existing if isinstance(s, dict) and "label" in s
+                ]
+                if old_labels == ["YouTube", "Netflix", "Prime Video", "Disney+", "Globoplay"]:
+                    data["app_shortcuts"] = [
+                        {"label": item.label, "link": item.link} for item in DEFAULT_APP_SHORTCUTS
+                    ]
+            data["schema_version"] = 2
+            self._save_to_disk(data)
         return data
 
     def _save_to_disk(self, data: dict[str, Any]) -> None:

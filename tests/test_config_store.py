@@ -86,3 +86,59 @@ def test_app_shortcuts_and_ui_settings(tmp_path: Path) -> None:
 
     store.set_always_on_top(True)
     assert store.get_always_on_top() is True
+
+
+def test_schema_migration_from_v1_defaults(tmp_path: Path) -> None:
+    paths = AppPaths(base_dir=tmp_path)
+    old_v1_config = {
+        "schema_version": 1,
+        "client_name": "py-atv-remote (test)",
+        "last_selected_id": None,
+        "tvs": {},
+        "app_shortcuts": [
+            {"label": "YouTube", "link": "https://www.youtube.com"},
+            {"label": "Netflix", "link": "https://www.netflix.com/title"},
+            {"label": "Prime Video", "link": "https://app.primevideo.com"},
+            {"label": "Disney+", "link": "https://www.disneyplus.com"},
+            {"label": "Globoplay", "link": "https://globoplay.globo.com"},
+        ],
+        "ui": {"always_on_top": False},
+    }
+    paths.ensure_dirs()
+    import json
+
+    paths.config_file.write_text(json.dumps(old_v1_config), encoding="utf-8")
+
+    store = ConfigStore(paths)
+    labels = [s.label for s in store.get_app_shortcuts()]
+    assert labels == [
+        "YouTube",
+        "Netflix",
+        "Prime Video",
+        "Disney+",
+        "Crunchyroll",
+        "HBO Max",
+    ]
+
+
+def test_schema_migration_preserves_custom_shortcuts(tmp_path: Path) -> None:
+    paths = AppPaths(base_dir=tmp_path)
+    custom_v1_config = {
+        "schema_version": 1,
+        "client_name": "py-atv-remote (test)",
+        "last_selected_id": None,
+        "tvs": {},
+        "app_shortcuts": [
+            {"label": "Kodi", "link": "org.xbmc.kodi"},
+            {"label": "Plex", "link": "com.plexapp.android"},
+        ],
+        "ui": {"always_on_top": False},
+    }
+    paths.ensure_dirs()
+    import json
+
+    paths.config_file.write_text(json.dumps(custom_v1_config), encoding="utf-8")
+
+    store = ConfigStore(paths)
+    labels = [s.label for s in store.get_app_shortcuts()]
+    assert labels == ["Kodi", "Plex"]

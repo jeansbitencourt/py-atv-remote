@@ -99,6 +99,11 @@ class StatusBar(QtWidgets.QFrame):
             "com.netflix.ninja": "Netflix",
             "com.amazon.amazonvideo.livingroom": "Prime Video",
             "com.disney.disneyplus": "Disney+",
+            "com.crunchyroll.crunchyroid": "Crunchyroll",
+            "com.crunchyroll.crunchyrollapp": "Crunchyroll",
+            "com.wbd.stream": "HBO Max",
+            "com.wbd.hbomax": "HBO Max",
+            "com.hbo.hbonow": "HBO Max",
             "globo.globotv": "Globoplay",
             "com.google.android.tvlauncher": "Início",
         }
