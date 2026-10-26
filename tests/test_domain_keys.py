@@ -8,6 +8,7 @@ def test_remote_keys_values() -> None:
     assert RemoteKey.POWER.value == "KEYCODE_POWER"
     assert RemoteKey.VOLUME_UP.value == "KEYCODE_VOLUME_UP"
     assert RemoteKey.BACK.value == "KEYCODE_BACK"
+    assert RemoteKey.TV_INPUT.value == "KEYCODE_TV_INPUT"
 
 
 def test_remote_keys_repeatable() -> None:

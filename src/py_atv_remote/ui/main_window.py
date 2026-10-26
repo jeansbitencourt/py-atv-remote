@@ -132,7 +132,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         main_layout.addWidget(self._pairing_banner)
 
-        # 4. Top Action Row: Power, Menu, Settings
+        # 4. Top Action Row: Power, Input (Entradas), Settings (Ajustes)
         top_row = QtWidgets.QHBoxLayout()
         top_row.setSpacing(6)
 
@@ -142,10 +142,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._btn_power.clicked.connect(self._on_power_pressed)
         top_row.addWidget(self._btn_power)
 
-        self._btn_tv_menu = QtWidgets.QPushButton("Menu", self)
-        self._btn_tv_menu.setFixedHeight(32)
-        self._btn_tv_menu.clicked.connect(lambda: self._send_key(RemoteKey.MENU))
-        top_row.addWidget(self._btn_tv_menu)
+        self._btn_tv_input = QtWidgets.QPushButton("Entradas", self)
+        self._btn_tv_input.setFixedHeight(32)
+        self._btn_tv_input.setToolTip("Alternar Entradas HDMI / TV")
+        self._btn_tv_input.clicked.connect(lambda: self._send_key(RemoteKey.TV_INPUT))
+        top_row.addWidget(self._btn_tv_input)
 
         self._btn_tv_settings = QtWidgets.QPushButton("Ajustes", self)
         self._btn_tv_settings.setFixedHeight(32)
@@ -409,7 +410,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._dpad.set_enabled(connected)
         for btn in (
-            self._btn_tv_menu,
+            self._btn_tv_input,
             self._btn_tv_settings,
             self._btn_back,
             self._btn_home,

@@ -53,6 +53,9 @@ def handle_key_event(
     if key in (QtCore.Qt.Key.Key_M,):
         on_key(RemoteKey.MUTE)
         return True
+    if key in (QtCore.Qt.Key.Key_I,):
+        on_key(RemoteKey.TV_INPUT)
+        return True
 
     remote_key = KEY_MAP.get(key)
     if remote_key:

@@ -50,6 +50,18 @@ def test_keybinding_dispatch_when_enabled() -> None:
     assert handled_h is True
     assert sent_keys == [RemoteKey.DPAD_UP, RemoteKey.HOME]
 
+    # Simulate pressing 'i' (TV_INPUT)
+    event_i = QtGui.QKeyEvent(
+        QtCore.QEvent.Type.KeyPress,
+        QtCore.Qt.Key.Key_I.value,
+        QtCore.Qt.KeyboardModifier.NoModifier,
+    )
+    handled_i = handle_key_event(
+        event_i, window, on_key=lambda k: sent_keys.append(k), is_enabled=lambda: True
+    )
+    assert handled_i is True
+    assert sent_keys == [RemoteKey.DPAD_UP, RemoteKey.HOME, RemoteKey.TV_INPUT]
+
     # When disabled, should return False and not dispatch
     sent_keys.clear()
     handled_dis = handle_key_event(

@@ -19,6 +19,7 @@ class RemoteKey(StrEnum):
     POWER = "KEYCODE_POWER"
     MENU = "KEYCODE_MENU"
     SETTINGS = "KEYCODE_SETTINGS"
+    TV_INPUT = "KEYCODE_TV_INPUT"
 
     # Volume
     VOLUME_UP = "KEYCODE_VOLUME_UP"
