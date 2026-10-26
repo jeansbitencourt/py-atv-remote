@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=py-atv-remote
+GenericName=Controle Remoto Android TV
+Comment=Controle remoto desktop nativo para Android TV e Google TV via protocolo V2 (mTLS)
+Exec=py-atv-remote
+Icon=py-atv-remote
+Terminal=false
+Categories=AudioVideo;RemoteControl;Utility;Network;
+StartupWMClass=py-atv-remote
+Keywords=android;tv;remote;google;controle;televisao;mtls;
