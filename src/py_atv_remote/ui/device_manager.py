@@ -13,7 +13,7 @@ from py_atv_remote.infrastructure.cert_store import CertStore
 from py_atv_remote.infrastructure.config_store import ConfigStore
 from py_atv_remote.services.async_runner import AsyncRunner
 from py_atv_remote.services.discovery_service import DiscoveryService
-from py_atv_remote.services.events import EventBus
+from py_atv_remote.services.events import Dispatcher, EventBus
 from py_atv_remote.services.pairing_service import PairingService, PairingSession
 from py_atv_remote.services.remote_session import RemoteSessionService
 from py_atv_remote.ui.pair_dialog import PairDialog
@@ -34,6 +34,7 @@ class DeviceManager(QtWidgets.QDialog):
         remote_session: RemoteSessionService,
         event_bus: EventBus,
         async_runner: AsyncRunner,
+        dispatcher: Dispatcher,
         on_tv_selected: Callable[[str], None],
     ) -> None:
         super().__init__(parent)
@@ -44,6 +45,7 @@ class DeviceManager(QtWidgets.QDialog):
         self._session = remote_session
         self._event_bus = event_bus
         self._runner = async_runner
+        self._dispatcher = dispatcher
         self._on_tv_selected = on_tv_selected
 
         self.setWindowTitle("Gerenciador de Android TVs")
@@ -226,25 +228,24 @@ class DeviceManager(QtWidgets.QDialog):
             return
         self._start_pairing_flow(item)
 
+    def _show_critical(self, title: str, text: str) -> None:
+        QtWidgets.QMessageBox.critical(self, title, text)
+
     def _start_pairing_flow(self, target: DiscoveredTv | TvProfile) -> None:
         self._status_lbl.setText(f"Iniciando pareamento com {target.name}…")
 
         async def _do_start() -> None:
             try:
                 session = await self._pairing.start_pairing(target)
-                self._runner.call_soon(lambda: self._open_pair_dialog(session))
+                self._dispatcher.post(lambda: self._open_pair_dialog(session))
             except TvUnreachableError as exc:
                 err_text = str(exc)
-                self._runner.call_soon(
-                    lambda: QtWidgets.QMessageBox.critical(self, "TV Inacessível", err_text)
-                )
+                self._dispatcher.post(lambda: self._show_critical("TV Inacessível", err_text))
             except Exception as exc:
                 err_text = str(exc)
-                self._runner.call_soon(
-                    lambda: QtWidgets.QMessageBox.critical(self, "Erro de Pareamento", err_text)
-                )
+                self._dispatcher.post(lambda: self._show_critical("Erro de Pareamento", err_text))
             finally:
-                self._runner.call_soon(
+                self._dispatcher.post(
                     lambda: self._status_lbl.setText("Varredura mDNS ativa em segundo plano.")
                 )
 
@@ -256,6 +257,7 @@ class DeviceManager(QtWidgets.QDialog):
             pairing_service=self._pairing,
             pairing_session=session,
             async_runner=self._runner,
+            dispatcher=self._dispatcher,
             on_success=self._on_pair_success,
         )
         dialog.exec()
@@ -327,18 +329,15 @@ class DeviceManager(QtWidgets.QDialog):
         async def _probe() -> None:
             try:
                 tv = await self._discovery.probe_manual(host)
-                self._runner.call_soon(lambda: self._start_pairing_flow(tv))
+                self._dispatcher.post(lambda: self._start_pairing_flow(tv))
             except TvUnreachableError:
-                self._runner.call_soon(
-                    lambda: QtWidgets.QMessageBox.critical(
-                        self,
-                        "TV Inacessível",
-                        f"Não foi possível conectar em {host}:6466.\n"
-                        "Verifique se o IP está correto e a TV está ligada na mesma rede Wi-Fi.",
-                    )
+                err_msg = (
+                    f"Não foi possível conectar em {host}:6466.\n"
+                    "Verifique se o IP está correto e a TV está ligada na mesma rede Wi-Fi."
                 )
+                self._dispatcher.post(lambda: self._show_critical("TV Inacessível", err_msg))
             finally:
-                self._runner.call_soon(
+                self._dispatcher.post(
                     lambda: self._status_lbl.setText("Varredura mDNS ativa em segundo plano.")
                 )
 
@@ -351,9 +350,9 @@ class DeviceManager(QtWidgets.QDialog):
         async def _do_scan() -> None:
             try:
                 await self._discovery.full_scan()
-                self._runner.call_soon(self._refresh_list)
+                self._dispatcher.post(self._refresh_list)
             finally:
-                self._runner.call_soon(self._on_scan_finished)
+                self._dispatcher.post(self._on_scan_finished)
 
         self._runner.submit(_do_scan())
 

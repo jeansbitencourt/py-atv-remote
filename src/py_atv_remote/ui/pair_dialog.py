@@ -10,6 +10,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from py_atv_remote.domain.errors import InvalidPinError, PairingFailedError
 from py_atv_remote.domain.models import TvProfile
 from py_atv_remote.services.async_runner import AsyncRunner
+from py_atv_remote.services.events import Dispatcher
 from py_atv_remote.services.pairing_service import PairingService, PairingSession
 
 LOGGER = logging.getLogger(__name__)
@@ -24,12 +25,14 @@ class PairDialog(QtWidgets.QDialog):
         pairing_service: PairingService,
         pairing_session: PairingSession,
         async_runner: AsyncRunner,
+        dispatcher: Dispatcher,
         on_success: Callable[[TvProfile], None],
     ) -> None:
         super().__init__(parent)
         self._pairing_service = pairing_service
         self._session = pairing_session
         self._runner = async_runner
+        self._dispatcher = dispatcher
         self._on_success = on_success
 
         self.setWindowTitle("Pareamento de TV")
@@ -89,36 +92,40 @@ class PairDialog(QtWidgets.QDialog):
     def _on_submit(self) -> None:
         pin = self._pin_entry.text().strip().upper()
         if not pin:
+            self._status_lbl.setStyleSheet("color: #ef4444; font-size: 10px;")
             self._status_lbl.setText("Digite o PIN exibido na TV.")
             return
 
         self._set_loading(True)
+        self._status_lbl.setStyleSheet("color: #a1a1aa; font-size: 10px;")
         self._status_lbl.setText("Verificando PIN…")
 
         async def _do_finish() -> None:
             try:
                 profile = await self._pairing_service.finish_pairing(self._session, pin)
-                self._runner.call_soon(lambda: self._finish_success(profile))
+                self._dispatcher.post(lambda: self._finish_success(profile))
             except InvalidPinError:
-                self._runner.call_soon(
+                self._dispatcher.post(
                     lambda: self._show_error("PIN incorreto. Verifique e tente novamente.")
                 )
             except PairingFailedError as exc:
                 err_text = f"Falha no pareamento: {exc}"
-                self._runner.call_soon(lambda: self._show_error(err_text))
+                self._dispatcher.post(lambda: self._show_error(err_text))
             except Exception as exc:
                 err_text = f"Erro inesperado: {exc}"
-                self._runner.call_soon(lambda: self._show_error(err_text))
+                self._dispatcher.post(lambda: self._show_error(err_text))
 
         self._runner.submit(_do_finish())
 
     def _finish_success(self, profile: TvProfile) -> None:
-        self._on_success(profile)
         self.accept()
+        self._on_success(profile)
 
     def _show_error(self, message: str) -> None:
         self._set_loading(False)
+        self._status_lbl.setStyleSheet("color: #ef4444; font-size: 10px;")
         self._status_lbl.setText(message)
+        self._pin_entry.selectAll()
         self._pin_entry.setFocus()
 
     def _set_loading(self, loading: bool) -> None:

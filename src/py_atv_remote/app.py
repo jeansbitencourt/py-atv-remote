@@ -291,6 +291,7 @@ class App:
             remote_session=self.session,
             event_bus=self.event_bus,
             async_runner=self.runner,
+            dispatcher=self.dispatcher,
             on_tv_selected=self._on_tv_selected_from_manager,
         )
         dialog.exec()
