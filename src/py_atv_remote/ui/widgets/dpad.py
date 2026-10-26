@@ -29,11 +29,11 @@ class DPad(ctk.CTkFrame):
         self.columnconfigure((0, 1, 2), weight=1, uniform="dpad")
         self.rowconfigure((0, 1, 2), weight=1, uniform="dpad")
 
-        btn_font = ("Liberation Sans", 14, "bold")
+        btn_font = ("Liberation Sans", 13, "bold")
         btn_kwargs: dict[str, Any] = {
-            "width": 58,
-            "height": 48,
-            "corner_radius": 12,
+            "width": 50,
+            "height": 40,
+            "corner_radius": 8,
             "fg_color": ("#d4d4d8", "#3f3f46"),
             "hover_color": ("#a1a1aa", "#52525b"),
             "text_color": ("#18181b", "#f4f4f5"),
@@ -47,7 +47,7 @@ class DPad(ctk.CTkFrame):
             command=lambda: self._on_key(RemoteKey.DPAD_UP),
             **btn_kwargs,
         )
-        self.btn_up.grid(row=0, column=1, padx=4, pady=4, sticky="nsew")
+        self.btn_up.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
 
         # Row 1: Left, OK, Right
         self.btn_left = RepeatButton(
@@ -56,21 +56,21 @@ class DPad(ctk.CTkFrame):
             command=lambda: self._on_key(RemoteKey.DPAD_LEFT),
             **btn_kwargs,
         )
-        self.btn_left.grid(row=1, column=0, padx=4, pady=4, sticky="nsew")
+        self.btn_left.grid(row=1, column=0, padx=3, pady=3, sticky="nsew")
 
         self.btn_center = ctk.CTkButton(
             self,
             text="OK",
             command=lambda: self._on_key(RemoteKey.DPAD_CENTER),
-            width=58,
-            height=48,
-            corner_radius=14,
+            width=50,
+            height=40,
+            corner_radius=10,
             fg_color="#2563eb",
             hover_color="#1d4ed8",
             text_color="#ffffff",
-            font=("Liberation Sans", 13, "bold"),
+            font=("Liberation Sans", 12, "bold"),
         )
-        self.btn_center.grid(row=1, column=1, padx=4, pady=4, sticky="nsew")
+        self.btn_center.grid(row=1, column=1, padx=3, pady=3, sticky="nsew")
 
         self.btn_right = RepeatButton(
             self,
@@ -78,7 +78,7 @@ class DPad(ctk.CTkFrame):
             command=lambda: self._on_key(RemoteKey.DPAD_RIGHT),
             **btn_kwargs,
         )
-        self.btn_right.grid(row=1, column=2, padx=4, pady=4, sticky="nsew")
+        self.btn_right.grid(row=1, column=2, padx=3, pady=3, sticky="nsew")
 
         # Row 2: Down
         self.btn_down = RepeatButton(
@@ -87,7 +87,7 @@ class DPad(ctk.CTkFrame):
             command=lambda: self._on_key(RemoteKey.DPAD_DOWN),
             **btn_kwargs,
         )
-        self.btn_down.grid(row=2, column=1, padx=4, pady=4, sticky="nsew")
+        self.btn_down.grid(row=2, column=1, padx=3, pady=3, sticky="nsew")
 
     def set_enabled(self, enabled: bool) -> None:
         """Enable or disable all DPad buttons."""

@@ -9,6 +9,7 @@ from tkinter import messagebox
 from typing import Any
 
 import customtkinter as ctk
+from customtkinter.windows.widgets.core_rendering import DrawEngine
 
 from py_atv_remote.domain.keys import RemoteKey
 from py_atv_remote.domain.models import ConnectionState, TvProfile, VolumeState
@@ -20,6 +21,9 @@ from py_atv_remote.ui.keybindings import register_keybindings
 from py_atv_remote.ui.widgets.dpad import DPad
 from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 from py_atv_remote.ui.widgets.status_bar import StatusBar
+
+# Force circle_shapes on Linux so Tkinter Canvas renders solid rounded corners and chevron arrows
+DrawEngine.preferred_drawing_method = "circle_shapes"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +59,9 @@ class MainWindow:
 
     def _setup_window(self) -> None:
         self._root.title("py-atv-remote")
+        # Set authentic vertical remote control dimensions
+        self._root.geometry("310x590")
+        self._root.minsize(310, 590)
         self._root.resizable(False, False)
         # Apply always-on-top preference
         always_on_top = self._config_store.get_always_on_top()
@@ -66,13 +73,13 @@ class MainWindow:
             "hover_color": ("#a1a1aa", "#52525b"),
             "text_color": ("#18181b", "#f4f4f5"),
             "corner_radius": 8,
-            "height": 34,
-            "font": ("Liberation Sans", 11),
+            "height": 32,
+            "font": ("Liberation Sans", 10, "bold"),
         }
 
-        # 1. Header Frame: TV Selector + Manage Devices (+) + Settings Menu (⚙)
+        # 1. Header Frame: TV Selector + Manage Devices (+) + Settings Menu (Opções)
         header_frame = ctk.CTkFrame(self._root, fg_color="transparent")
-        header_frame.pack(fill="x", padx=12, pady=(10, 6))
+        header_frame.pack(fill="x", padx=12, pady=(10, 4))
 
         self._tv_selector_var = tk.StringVar()
         self._tv_selector = ctk.CTkOptionMenu(
@@ -89,14 +96,14 @@ class MainWindow:
             dropdown_fg_color=("#f4f4f5", "#27272a"),
             dropdown_text_color=("#18181b", "#f4f4f5"),
             dropdown_hover_color=("#d4d4d8", "#3f3f46"),
-            font=("Liberation Sans", 11),
+            font=("Liberation Sans", 10),
         )
         self._tv_selector.pack(side="left", fill="x", expand=True, padx=(0, 6))
 
         self._btn_add_tv = ctk.CTkButton(
             header_frame,
             text="+",
-            width=34,
+            width=32,
             height=32,
             corner_radius=8,
             font=("Liberation Sans", 14, "bold"),
@@ -109,11 +116,11 @@ class MainWindow:
 
         self._btn_menu = ctk.CTkButton(
             header_frame,
-            text="⚙",
-            width=34,
+            text="Opções",
+            width=62,
             height=32,
             corner_radius=8,
-            font=("Liberation Sans", 13),
+            font=("Liberation Sans", 10, "bold"),
             fg_color=("#d4d4d8", "#3f3f46"),
             hover_color=("#a1a1aa", "#52525b"),
             text_color=("#18181b", "#f4f4f5"),
@@ -138,21 +145,21 @@ class MainWindow:
 
         # 2. Status Bar
         self._status_bar = StatusBar(self._root)
-        self._status_bar.pack(fill="x", padx=12, pady=(0, 6))
+        self._status_bar.pack(fill="x", padx=12, pady=(0, 4))
 
         # 3. Needs Pairing Banner (hidden by default)
         self._pairing_banner = ctk.CTkFrame(self._root, fg_color="#1e3a8a", corner_radius=8)
         self._lbl_pairing = ctk.CTkLabel(
             self._pairing_banner,
             text="Esta TV precisa ser pareada.",
-            font=("Liberation Sans", 11),
+            font=("Liberation Sans", 10),
             text_color="#ffffff",
         )
-        self._lbl_pairing.pack(side="left", padx=8, pady=4)
+        self._lbl_pairing.pack(side="left", padx=8, pady=3)
         self._btn_pair_banner = ctk.CTkButton(
             self._pairing_banner,
-            text="Parear Agora",
-            width=80,
+            text="Parear",
+            width=68,
             height=26,
             corner_radius=6,
             fg_color="#2563eb",
@@ -160,36 +167,39 @@ class MainWindow:
             font=("Liberation Sans", 10, "bold"),
             command=self._open_device_manager,
         )
-        self._btn_pair_banner.pack(side="right", padx=8, pady=4)
+        self._btn_pair_banner.pack(side="right", padx=8, pady=3)
 
         # 4. Top Action Row: Power, Menu, Settings
         top_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        top_row.pack(fill="x", padx=12, pady=4)
+        top_row.pack(fill="x", padx=12, pady=2)
 
         self._btn_power = ctk.CTkButton(
             top_row,
             text="Power",
-            font=("Liberation Sans", 11, "bold"),
+            width=88,
+            height=32,
+            font=("Liberation Sans", 10, "bold"),
             fg_color="#dc2626",
             hover_color="#b91c1c",
             text_color="#ffffff",
             corner_radius=8,
-            height=34,
             command=self._on_power_pressed,
         )
-        self._btn_power.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_power.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_tv_menu = ctk.CTkButton(
             top_row,
             text="Menu",
+            width=88,
             command=lambda: self._send_key(RemoteKey.MENU),
             **btn_common,
         )
-        self._btn_tv_menu.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_tv_menu.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_tv_settings = ctk.CTkButton(
             top_row,
             text="Ajustes",
+            width=88,
             command=lambda: self._send_key(RemoteKey.SETTINGS),
             **btn_common,
         )
@@ -197,25 +207,27 @@ class MainWindow:
 
         # 5. D-Pad Frame
         dpad_frame = ctk.CTkFrame(self._root, fg_color="transparent")
-        dpad_frame.pack(padx=16, pady=8)
+        dpad_frame.pack(padx=12, pady=4)
         self._dpad = DPad(dpad_frame, on_key=self._send_key)
         self._dpad.pack()
 
         # 6. System Row: Voltar, Início
         sys_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        sys_row.pack(fill="x", padx=12, pady=4)
+        sys_row.pack(fill="x", padx=12, pady=2)
 
         self._btn_back = ctk.CTkButton(
             sys_row,
             text="Voltar",
+            width=135,
             command=lambda: self._send_key(RemoteKey.BACK),
             **btn_common,
         )
-        self._btn_back.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_back.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_home = ctk.CTkButton(
             sys_row,
             text="Início",
+            width=135,
             command=lambda: self._send_key(RemoteKey.HOME),
             **btn_common,
         )
@@ -227,31 +239,34 @@ class MainWindow:
             "hover_color": ("#94a3b8", "#475569"),
             "text_color": ("#18181b", "#f4f4f5"),
             "corner_radius": 8,
-            "height": 34,
-            "font": ("Liberation Sans", 12, "bold"),
+            "height": 32,
+            "font": ("Liberation Sans", 11, "bold"),
         }
         media_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        media_row.pack(fill="x", padx=12, pady=4)
+        media_row.pack(fill="x", padx=12, pady=2)
 
         self._btn_rewind = ctk.CTkButton(
             media_row,
             text="◄◄",
+            width=88,
             command=lambda: self._send_key(RemoteKey.MEDIA_REWIND),
             **media_common,
         )
-        self._btn_rewind.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_rewind.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_play_pause = ctk.CTkButton(
             media_row,
             text="►||",
+            width=88,
             command=lambda: self._send_key(RemoteKey.MEDIA_PLAY_PAUSE),
             **media_common,
         )
-        self._btn_play_pause.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_play_pause.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_fast_forward = ctk.CTkButton(
             media_row,
             text="►►",
+            width=88,
             command=lambda: self._send_key(RemoteKey.MEDIA_FAST_FORWARD),
             **media_common,
         )
@@ -259,40 +274,43 @@ class MainWindow:
 
         # 8. Volume Row: Vol -, Mudo, Vol +
         vol_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        vol_row.pack(fill="x", padx=12, pady=4)
+        vol_row.pack(fill="x", padx=12, pady=2)
 
         self._btn_vol_down = RepeatButton(
             vol_row,
             text="Vol -",
+            width=88,
             command=lambda: self._send_key(RemoteKey.VOLUME_DOWN),
             **btn_common,
         )
-        self._btn_vol_down.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_vol_down.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_mute = ctk.CTkButton(
             vol_row,
             text="Mudo",
+            width=88,
             command=lambda: self._send_key(RemoteKey.MUTE),
             **btn_common,
         )
-        self._btn_mute.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self._btn_mute.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
         self._btn_vol_up = RepeatButton(
             vol_row,
             text="Vol +",
+            width=88,
             command=lambda: self._send_key(RemoteKey.VOLUME_UP),
             **btn_common,
         )
         self._btn_vol_up.pack(side="left", fill="x", expand=True)
 
-        # 9. App Shortcuts Container
+        # 9. App Shortcuts Container (2-column grid for clean fit)
         self._shortcuts_frame = ctk.CTkFrame(self._root, fg_color="transparent")
-        self._shortcuts_frame.pack(fill="x", padx=12, pady=4)
+        self._shortcuts_frame.pack(fill="x", padx=12, pady=2)
         self.refresh_app_shortcuts()
 
         # 10. Text Input Row
         text_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        text_row.pack(fill="x", padx=12, pady=(4, 12))
+        text_row.pack(fill="x", padx=12, pady=(4, 10))
 
         self._text_var = tk.StringVar()
         self._txt_input = ctk.CTkEntry(
@@ -303,8 +321,8 @@ class MainWindow:
             border_color=("#d4d4d8", "#3f3f46"),
             text_color=("#18181b", "#f4f4f5"),
             corner_radius=8,
-            height=34,
-            font=("Liberation Sans", 11),
+            height=32,
+            font=("Liberation Sans", 10),
         )
         self._txt_input.pack(side="left", fill="x", expand=True, padx=(0, 6))
         self._txt_input.bind("<Return>", lambda _e: self._on_send_text())
@@ -312,12 +330,12 @@ class MainWindow:
         self._btn_send_text = ctk.CTkButton(
             text_row,
             text="Enviar",
-            width=70,
-            height=34,
+            width=62,
+            height=32,
             corner_radius=8,
             fg_color="#2563eb",
             hover_color="#1d4ed8",
-            font=("Liberation Sans", 11, "bold"),
+            font=("Liberation Sans", 10, "bold"),
             command=self._on_send_text,
         )
         self._btn_send_text.pack(side="right")
@@ -409,7 +427,7 @@ class MainWindow:
             self._selected_tv_id = None
 
     def refresh_app_shortcuts(self) -> None:
-        """Rebuild app shortcut buttons from config."""
+        """Rebuild app shortcut buttons from config in a 2-column grid."""
         for child in self._shortcuts_frame.winfo_children():
             child.destroy()
 
@@ -417,23 +435,31 @@ class MainWindow:
         if not shortcuts:
             return
 
-        # Display up to 5 shortcuts in a clean row
-        for item in shortcuts[:5]:
+        self._shortcuts_frame.columnconfigure((0, 1), weight=1, uniform="shortcut")
+
+        items = shortcuts[:6]
+        count = len(items)
+        for idx, item in enumerate(items):
+            row = idx // 2
+            col = idx % 2
+            # If odd count and it's the last item, span across both columns
+            span = 2 if (idx == count - 1 and count % 2 == 1) else 1
+
             link_target = item.link
             btn = ctk.CTkButton(
                 self._shortcuts_frame,
                 text=item.label,
+                height=28,
+                corner_radius=8,
                 fg_color=("#e4e4e7", "#27272a"),
                 hover_color=("#d4d4d8", "#3f3f46"),
                 text_color=("#18181b", "#f4f4f5"),
-                font=("Liberation Sans", 10, "bold"),
-                corner_radius=8,
-                height=30,
+                font=("Liberation Sans", 9, "bold"),
                 border_width=1,
                 border_color=("#d4d4d8", "#3f3f46"),
                 command=self._make_launch_handler(link_target),
             )
-            btn.pack(side="left", fill="x", expand=True, padx=2)
+            btn.grid(row=row, column=col, columnspan=span, padx=2, pady=2, sticky="nsew")
 
     def _make_launch_handler(self, link: str) -> Callable[[], None]:
         return lambda: self._session.launch_app(link)

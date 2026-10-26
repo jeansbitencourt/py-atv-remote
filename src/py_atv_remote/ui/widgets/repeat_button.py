@@ -23,7 +23,7 @@ class RepeatButton(ctk.CTkButton):
         **kwargs: Any,
     ) -> None:
         kwargs.setdefault("corner_radius", 8)
-        kwargs.setdefault("font", ("Liberation Sans", 11, "bold"))
+        kwargs.setdefault("font", ("Liberation Sans", 10, "bold"))
         super().__init__(master, text=text, command=None, **kwargs)
         self._action = command
         self._initial_delay_ms = initial_delay_ms

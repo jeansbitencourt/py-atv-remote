@@ -33,30 +33,30 @@ class StatusBar(ctk.CTkFrame):
     """Displays connection status indicator, app name, and volume level."""
 
     def __init__(self, master: tk.Misc, **kwargs: Any) -> None:
-        kwargs.setdefault("corner_radius", 10)
+        kwargs.setdefault("corner_radius", 8)
         kwargs.setdefault("fg_color", ("#e4e4e7", "#27272a"))
-        kwargs.setdefault("height", 32)
+        kwargs.setdefault("height", 28)
         super().__init__(master, **kwargs)
 
         initial_color = STATE_COLORS[ConnectionState.IDLE]
         self._dot = ctk.CTkLabel(
             self,
             text="●",
-            font=("Liberation Sans", 13),
+            font=("Liberation Sans", 12),
             text_color=initial_color,
-            width=18,
+            width=16,
         )
-        self._dot.pack(side="left", padx=(8, 2), pady=3)
+        self._dot.pack(side="left", padx=(8, 2), pady=2)
 
         self._text_var = tk.StringVar(value=STATE_LABELS[ConnectionState.IDLE])
         self._label = ctk.CTkLabel(
             self,
             textvariable=self._text_var,
-            font=("Liberation Sans", 11),
+            font=("Liberation Sans", 10),
             text_color=("#18181b", "#d4d4d8"),
             anchor="w",
         )
-        self._label.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=3)
+        self._label.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=2)
 
         self._state = ConnectionState.IDLE
         self._current_app: str | None = None

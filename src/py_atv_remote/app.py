@@ -9,6 +9,7 @@ import sys
 from tkinter import ttk
 
 import customtkinter as ctk
+from customtkinter.windows.widgets.core_rendering import DrawEngine
 
 from py_atv_remote.infrastructure.cert_store import CertStore
 from py_atv_remote.infrastructure.config_store import ConfigStore
@@ -33,6 +34,8 @@ class App:
         self._setup_logging(debug)
 
         # 1. CustomTkinter global theme configuration
+        # Enforce circle_shapes on Linux so Canvas draws solid rounded corners and chevrons
+        DrawEngine.preferred_drawing_method = "circle_shapes"
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
