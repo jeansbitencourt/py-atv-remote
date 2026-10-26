@@ -74,9 +74,9 @@ class StatusBar(ttk.Frame):
 
             if self._volume is not None:
                 if self._volume.muted:
-                    parts.append("🔇 Mudo")
+                    parts.append("Mudo")
                 else:
-                    parts.append(f"🔊 {self._volume.level}/{self._volume.max_level}")
+                    parts.append(f"Vol {self._volume.level}/{self._volume.max_level}")
 
         self._text_var.set(" · ".join(parts))
 

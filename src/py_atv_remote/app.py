@@ -7,6 +7,7 @@ import contextlib
 import logging
 import sys
 import tkinter as tk
+from tkinter import font, ttk
 
 from py_atv_remote.infrastructure.cert_store import CertStore
 from py_atv_remote.infrastructure.config_store import ConfigStore
@@ -37,6 +38,7 @@ class App:
 
         # 2. Tkinter Root Window
         self.root = tk.Tk(className="py-atv-remote")
+        self._setup_theme()
         self.dispatcher = TkDispatcher(self.root)
 
         # 3. Services
@@ -77,6 +79,20 @@ class App:
         )
 
         self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
+
+    def _setup_theme(self) -> None:
+        style = ttk.Style(self.root)
+        if "clam" in style.theme_names():
+            style.theme_use("clam")
+
+        for font_name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
+            with contextlib.suppress(Exception):
+                f = font.nametofont(font_name)
+                f.configure(family="Liberation Sans", size=10)
+
+        style.configure("DPad.TButton", font=("Liberation Sans", 12, "bold"))
+        style.configure("Media.TButton", font=("Liberation Sans", 11, "bold"))
+        style.configure("Power.TButton", font=("Liberation Sans", 10, "bold"), foreground="#c0392b")
 
     def open_device_manager(self) -> None:
         """Open the TV device management dialog."""

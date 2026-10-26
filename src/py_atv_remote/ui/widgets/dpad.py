@@ -11,7 +11,7 @@ from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 
 
 class DPad(ttk.Frame):
-    """Directional pad (▲, ◀, OK, ▶, ▼) with repeat-on-hold for arrows."""
+    """Directional pad (▲, ◄, OK, ►, ▼) with repeat-on-hold for arrows."""
 
     def __init__(
         self,
@@ -31,15 +31,17 @@ class DPad(ttk.Frame):
             text="▲",
             command=lambda: self._on_key(RemoteKey.DPAD_UP),
             width=5,
+            style="DPad.TButton",
         )
         self.btn_up.grid(row=0, column=1, padx=4, pady=4, sticky="nsew")
 
         # Row 1: Left, OK, Right
         self.btn_left = RepeatButton(
             self,
-            text="◀",
+            text="◄",
             command=lambda: self._on_key(RemoteKey.DPAD_LEFT),
             width=5,
+            style="DPad.TButton",
         )
         self.btn_left.grid(row=1, column=0, padx=4, pady=4, sticky="nsew")
 
@@ -48,14 +50,16 @@ class DPad(ttk.Frame):
             text="OK",
             command=lambda: self._on_key(RemoteKey.DPAD_CENTER),
             width=5,
+            style="DPad.TButton",
         )
         self.btn_center.grid(row=1, column=1, padx=4, pady=4, sticky="nsew")
 
         self.btn_right = RepeatButton(
             self,
-            text="▶",
+            text="►",
             command=lambda: self._on_key(RemoteKey.DPAD_RIGHT),
             width=5,
+            style="DPad.TButton",
         )
         self.btn_right.grid(row=1, column=2, padx=4, pady=4, sticky="nsew")
 
@@ -65,6 +69,7 @@ class DPad(ttk.Frame):
             text="▼",
             command=lambda: self._on_key(RemoteKey.DPAD_DOWN),
             width=5,
+            style="DPad.TButton",
         )
         self.btn_down.grid(row=2, column=1, padx=4, pady=4, sticky="nsew")
 

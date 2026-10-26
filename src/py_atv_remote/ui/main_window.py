@@ -80,7 +80,7 @@ class MainWindow:
         )
         self._btn_add_tv.pack(side=tk.LEFT, padx=(0, 4))
 
-        self._btn_menu = ttk.Menubutton(header_frame, text="⚙", width=3)
+        self._btn_menu = ttk.Menubutton(header_frame, text="Opções", width=7)
         self._menu = tk.Menu(self._btn_menu, tearoff=0)
         self._menu_always_top_var = tk.BooleanVar(value=self._config_store.get_always_on_top())
         self._menu.add_checkbutton(
@@ -121,21 +121,22 @@ class MainWindow:
 
         self._btn_power = ttk.Button(
             top_row,
-            text="⏻ Power",
+            text="Power",
+            style="Power.TButton",
             command=self._on_power_pressed,
         )
         self._btn_power.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_tv_menu = ttk.Button(
             top_row,
-            text="☰ Menu",
+            text="Menu",
             command=lambda: self._send_key(RemoteKey.MENU),
         )
         self._btn_tv_menu.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_tv_settings = ttk.Button(
             top_row,
-            text="⚙ Ajustes",
+            text="Ajustes",
             command=lambda: self._send_key(RemoteKey.SETTINGS),
         )
         self._btn_tv_settings.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -152,68 +153,71 @@ class MainWindow:
 
         self._btn_back = ttk.Button(
             sys_row,
-            text="↩ Voltar",
+            text="Voltar",
             command=lambda: self._send_key(RemoteKey.BACK),
         )
         self._btn_back.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_home = ttk.Button(
             sys_row,
-            text="⌂ Início",
+            text="Início",
             command=lambda: self._send_key(RemoteKey.HOME),
         )
         self._btn_home.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        # 7. Media Row: ⏪, ⏯, ⏩
+        # 7. Media Row: ◄◄, ►||, ►►
         media_row = ttk.Frame(self._root)
         media_row.pack(fill=tk.X, padx=10, pady=4)
 
         self._btn_rewind = ttk.Button(
             media_row,
-            text="⏪",
-            width=5,
+            text="◄◄",
+            width=6,
+            style="Media.TButton",
             command=lambda: self._send_key(RemoteKey.MEDIA_REWIND),
         )
         self._btn_rewind.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_play_pause = ttk.Button(
             media_row,
-            text="⏯",
-            width=5,
+            text="►||",
+            width=6,
+            style="Media.TButton",
             command=lambda: self._send_key(RemoteKey.MEDIA_PLAY_PAUSE),
         )
         self._btn_play_pause.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_fast_forward = ttk.Button(
             media_row,
-            text="⏩",
-            width=5,
+            text="►►",
+            width=6,
+            style="Media.TButton",
             command=lambda: self._send_key(RemoteKey.MEDIA_FAST_FORWARD),
         )
         self._btn_fast_forward.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-        # 8. Volume Row: 🔉 -, 🔇 Mudo, 🔊 +
+        # 8. Volume Row: Vol -, Mudo, Vol +
         vol_row = ttk.Frame(self._root)
         vol_row.pack(fill=tk.X, padx=10, pady=4)
 
         self._btn_vol_down = RepeatButton(
             vol_row,
-            text="🔉 -",
+            text="Vol -",
             command=lambda: self._send_key(RemoteKey.VOLUME_DOWN),
         )
         self._btn_vol_down.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_mute = ttk.Button(
             vol_row,
-            text="🔇",
-            width=4,
+            text="Mudo",
+            width=6,
             command=lambda: self._send_key(RemoteKey.MUTE),
         )
         self._btn_mute.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
 
         self._btn_vol_up = RepeatButton(
             vol_row,
-            text="🔊 +",
+            text="Vol +",
             command=lambda: self._send_key(RemoteKey.VOLUME_UP),
         )
         self._btn_vol_up.pack(side=tk.LEFT, fill=tk.X, expand=True)
