@@ -1,12 +1,11 @@
-"""Modal dialog for entering TV pairing PIN built with CustomTkinter."""
+"""Modal dialog for entering TV pairing PIN built with PyQt6."""
 
 from __future__ import annotations
 
 import logging
-import tkinter as tk
 from collections.abc import Callable
 
-import customtkinter as ctk
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from py_atv_remote.domain.errors import InvalidPinError, PairingFailedError
 from py_atv_remote.domain.models import TvProfile
@@ -16,12 +15,12 @@ from py_atv_remote.services.pairing_service import PairingService, PairingSessio
 LOGGER = logging.getLogger(__name__)
 
 
-class PairDialog(ctk.CTkToplevel):
+class PairDialog(QtWidgets.QDialog):
     """Modal dialog prompting the user to type the PIN displayed on the TV."""
 
     def __init__(
         self,
-        parent: tk.Misc,
+        parent: QtWidgets.QWidget | None,
         pairing_service: PairingService,
         pairing_session: PairingSession,
         async_runner: AsyncRunner,
@@ -33,94 +32,68 @@ class PairDialog(ctk.CTkToplevel):
         self._runner = async_runner
         self._on_success = on_success
 
-        self.title("Pareamento de TV")
-        if isinstance(parent, (tk.Tk, tk.Toplevel)):
-            self.transient(parent)
-        self.grab_set()
-        self.resizable(False, False)
+        self.setWindowTitle("Pareamento de TV")
+        self.setModal(True)
+        self.setFixedSize(360, 240)
 
         self._build_ui()
-        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
     def _build_ui(self) -> None:
-        frame = ctk.CTkFrame(self, corner_radius=12, fg_color="transparent")
-        frame.pack(fill="both", expand=True, padx=24, pady=20)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
 
-        header = ctk.CTkLabel(
-            frame,
-            text=f"Pareando com {self._session.target_name}",
-            font=("Liberation Sans", 14, "bold"),
+        header = QtWidgets.QLabel(f"Pareando com {self._session.target_name}", self)
+        header.setStyleSheet("font-size: 14px; font-weight: bold; color: #ffffff;")
+        header.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(header)
+
+        info = QtWidgets.QLabel(
+            f"IP: {self._session.host}\nDigite o código de pareamento exibido na tela da TV:",
+            self,
         )
-        header.pack(pady=(0, 6))
+        info.setStyleSheet("color: #a1a1aa; font-size: 11px;")
+        info.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(info)
 
-        info = ctk.CTkLabel(
-            frame,
-            text=f"IP: {self._session.host}\nDigite o código de pareamento exibido na tela da TV:",
-            justify="center",
-            font=("Liberation Sans", 11),
-            text_color=("#52525b", "#a1a1aa"),
+        self._pin_entry = QtWidgets.QLineEdit(self)
+        self._pin_entry.setMaxLength(8)
+        self._pin_entry.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        self._pin_entry.setStyleSheet(
+            "font-family: monospace; font-size: 22px; font-weight: bold; "
+            "padding: 6px; letter-spacing: 4px;"
         )
-        info.pack(pady=(0, 14))
+        self._pin_entry.returnPressed.connect(self._on_submit)
+        layout.addWidget(self._pin_entry)
 
-        self._pin_var = tk.StringVar()
-        self._pin_entry = ctk.CTkEntry(
-            frame,
-            textvariable=self._pin_var,
-            font=("monospace", 22, "bold"),
-            justify="center",
-            width=180,
-            height=46,
-            corner_radius=10,
-        )
-        self._pin_entry.pack(pady=(0, 10))
-        self._pin_entry.focus_set()
-        self._pin_entry.bind("<Return>", lambda _e: self._on_submit())
-        self._pin_entry.bind("<Escape>", lambda _e: self._on_cancel())
+        self._status_lbl = QtWidgets.QLabel("", self)
+        self._status_lbl.setStyleSheet("color: #ef4444; font-size: 10px;")
+        self._status_lbl.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self._status_lbl)
 
-        self._status_var = tk.StringVar(value="")
-        self._status_lbl = ctk.CTkLabel(
-            frame,
-            textvariable=self._status_var,
-            text_color="#ef4444",
-            font=("Liberation Sans", 10),
-        )
-        self._status_lbl.pack(pady=(0, 12))
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.setSpacing(10)
 
-        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x")
+        self._btn_cancel = QtWidgets.QPushButton("Cancelar", self)
+        self._btn_cancel.clicked.connect(self._on_cancel)
+        btn_layout.addWidget(self._btn_cancel)
 
-        self._btn_cancel = ctk.CTkButton(
-            btn_frame,
-            text="Cancelar",
-            fg_color=("#d4d4d8", "#3f3f46"),
-            hover_color=("#a1a1aa", "#52525b"),
-            text_color=("#18181b", "#f4f4f5"),
-            corner_radius=8,
-            height=34,
-            command=self._on_cancel,
-        )
-        self._btn_cancel.pack(side="left", expand=True, fill="x", padx=(0, 6))
+        self._btn_submit = QtWidgets.QPushButton("Confirmar PIN", self)
+        self._btn_submit.setObjectName("primaryButton")
+        self._btn_submit.clicked.connect(self._on_submit)
+        btn_layout.addWidget(self._btn_submit)
 
-        self._btn_submit = ctk.CTkButton(
-            btn_frame,
-            text="Confirmar PIN",
-            fg_color="#2563eb",
-            hover_color="#1d4ed8",
-            corner_radius=8,
-            height=34,
-            font=("Liberation Sans", 11, "bold"),
-            command=self._on_submit,
-        )
-        self._btn_submit.pack(side="right", expand=True, fill="x", padx=(6, 0))
+        layout.addLayout(btn_layout)
+        self._pin_entry.setFocus()
 
     def _on_submit(self) -> None:
-        pin = self._pin_var.get().strip().upper()
+        pin = self._pin_entry.text().strip().upper()
         if not pin:
-            self._status_var.set("Digite o PIN exibido na TV.")
+            self._status_lbl.setText("Digite o PIN exibido na TV.")
             return
 
         self._set_loading(True)
-        self._status_var.set("Verificando PIN…")
+        self._status_lbl.setText("Verificando PIN…")
 
         async def _do_finish() -> None:
             try:
@@ -141,19 +114,27 @@ class PairDialog(ctk.CTkToplevel):
 
     def _finish_success(self, profile: TvProfile) -> None:
         self._on_success(profile)
-        self.destroy()
+        self.accept()
 
     def _show_error(self, message: str) -> None:
         self._set_loading(False)
-        self._status_var.set(message)
-        self._pin_entry.focus_set()
+        self._status_lbl.setText(message)
+        self._pin_entry.setFocus()
 
     def _set_loading(self, loading: bool) -> None:
-        state = "disabled" if loading else "normal"
-        self._btn_submit.configure(state=state)
-        self._btn_cancel.configure(state=state)
-        self._pin_entry.configure(state=state)
+        self._btn_submit.setEnabled(not loading)
+        self._btn_cancel.setEnabled(not loading)
+        self._pin_entry.setEnabled(not loading)
 
     def _on_cancel(self) -> None:
         self._pairing_service.cancel_pairing(self._session)
-        self.destroy()
+        self.reject()
+
+    def reject(self) -> None:
+        self._on_cancel()
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent | None) -> None:
+        if event is not None and event.key() == QtCore.Qt.Key.Key_Escape.value:
+            self._on_cancel()
+        elif event is not None:
+            super().keyPressEvent(event)

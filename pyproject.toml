@@ -10,7 +10,7 @@ dependencies = [
     "androidtvremote2>=0.3.2,<0.4",
     "zeroconf>=0.130.0",
     "cryptography>=42.0.0",
-    "customtkinter>=6.0.0",
+    "pyqt6>=6.11.0",
 ]
 
 [project.scripts]
@@ -55,14 +55,8 @@ warn_unused_configs = true
 module = [
     "androidtvremote2.*",
     "zeroconf.*",
-    "customtkinter",
-    "customtkinter.*",
 ]
 ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "py_atv_remote.ui.*"
-disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

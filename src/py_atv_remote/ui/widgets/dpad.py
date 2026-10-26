@@ -1,96 +1,63 @@
-"""Visual D-Pad navigation control widget built with CustomTkinter."""
+"""Visual D-Pad navigation control widget built with PyQt6."""
 
 from __future__ import annotations
 
-import tkinter as tk
 from collections.abc import Callable
-from typing import Any
 
-import customtkinter as ctk
+from PyQt6 import QtCore, QtWidgets
 
 from py_atv_remote.domain.keys import RemoteKey
 from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 
 
-class DPad(ctk.CTkFrame):
+class DPad(QtWidgets.QWidget):
     """Directional pad (▲, ◄, OK, ►, ▼) with repeat-on-hold for arrows."""
 
     def __init__(
         self,
-        master: tk.Misc,
         on_key: Callable[[RemoteKey], None],
-        **kwargs: Any,
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
-        kwargs.setdefault("fg_color", "transparent")
-        super().__init__(master, **kwargs)
+        super().__init__(parent)
         self._on_key = on_key
 
-        # Grid layout
-        self.columnconfigure((0, 1, 2), weight=1, uniform="dpad")
-        self.rowconfigure((0, 1, 2), weight=1, uniform="dpad")
+        layout = QtWidgets.QGridLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 
-        btn_font = ("Liberation Sans", 13, "bold")
-        btn_kwargs: dict[str, Any] = {
-            "width": 50,
-            "height": 40,
-            "corner_radius": 8,
-            "fg_color": ("#d4d4d8", "#3f3f46"),
-            "hover_color": ("#a1a1aa", "#52525b"),
-            "text_color": ("#18181b", "#f4f4f5"),
-            "font": btn_font,
-        }
+        btn_size = QtCore.QSize(54, 42)
 
         # Row 0: Up
-        self.btn_up = RepeatButton(
-            self,
-            text="▲",
-            command=lambda: self._on_key(RemoteKey.DPAD_UP),
-            **btn_kwargs,
-        )
-        self.btn_up.grid(row=0, column=1, padx=3, pady=3, sticky="nsew")
+        self.btn_up = RepeatButton("▲", self, command=lambda: self._on_key(RemoteKey.DPAD_UP))
+        self.btn_up.setObjectName("dpadArrow")
+        self.btn_up.setFixedSize(btn_size)
+        layout.addWidget(self.btn_up, 0, 1)
 
         # Row 1: Left, OK, Right
-        self.btn_left = RepeatButton(
-            self,
-            text="◄",
-            command=lambda: self._on_key(RemoteKey.DPAD_LEFT),
-            **btn_kwargs,
-        )
-        self.btn_left.grid(row=1, column=0, padx=3, pady=3, sticky="nsew")
+        self.btn_left = RepeatButton("◄", self, command=lambda: self._on_key(RemoteKey.DPAD_LEFT))
+        self.btn_left.setObjectName("dpadArrow")
+        self.btn_left.setFixedSize(btn_size)
+        layout.addWidget(self.btn_left, 1, 0)
 
-        self.btn_center = ctk.CTkButton(
-            self,
-            text="OK",
-            command=lambda: self._on_key(RemoteKey.DPAD_CENTER),
-            width=50,
-            height=40,
-            corner_radius=10,
-            fg_color="#2563eb",
-            hover_color="#1d4ed8",
-            text_color="#ffffff",
-            font=("Liberation Sans", 12, "bold"),
-        )
-        self.btn_center.grid(row=1, column=1, padx=3, pady=3, sticky="nsew")
+        self.btn_center = QtWidgets.QPushButton("OK", self)
+        self.btn_center.setObjectName("dpadCenter")
+        self.btn_center.setFixedSize(btn_size)
+        self.btn_center.clicked.connect(lambda: self._on_key(RemoteKey.DPAD_CENTER))
+        layout.addWidget(self.btn_center, 1, 1)
 
-        self.btn_right = RepeatButton(
-            self,
-            text="►",
-            command=lambda: self._on_key(RemoteKey.DPAD_RIGHT),
-            **btn_kwargs,
-        )
-        self.btn_right.grid(row=1, column=2, padx=3, pady=3, sticky="nsew")
+        self.btn_right = RepeatButton("►", self, command=lambda: self._on_key(RemoteKey.DPAD_RIGHT))
+        self.btn_right.setObjectName("dpadArrow")
+        self.btn_right.setFixedSize(btn_size)
+        layout.addWidget(self.btn_right, 1, 2)
 
         # Row 2: Down
-        self.btn_down = RepeatButton(
-            self,
-            text="▼",
-            command=lambda: self._on_key(RemoteKey.DPAD_DOWN),
-            **btn_kwargs,
-        )
-        self.btn_down.grid(row=2, column=1, padx=3, pady=3, sticky="nsew")
+        self.btn_down = RepeatButton("▼", self, command=lambda: self._on_key(RemoteKey.DPAD_DOWN))
+        self.btn_down.setObjectName("dpadArrow")
+        self.btn_down.setFixedSize(btn_size)
+        layout.addWidget(self.btn_down, 2, 1)
 
     def set_enabled(self, enabled: bool) -> None:
         """Enable or disable all DPad buttons."""
-        state = "normal" if enabled else "disabled"
         for btn in (self.btn_up, self.btn_left, self.btn_center, self.btn_right, self.btn_down):
-            btn.configure(state=state)
+            btn.setEnabled(enabled)

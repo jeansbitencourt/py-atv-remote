@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import logging
-import tkinter as tk
 from collections.abc import Callable
-from tkinter import messagebox, simpledialog, ttk
-from typing import Any
 
-import customtkinter as ctk
+from PyQt6 import QtGui, QtWidgets
 
 from py_atv_remote.domain.errors import TvUnreachableError
 from py_atv_remote.domain.models import DiscoveredTv, TvProfile
@@ -24,12 +21,12 @@ from py_atv_remote.ui.pair_dialog import PairDialog
 LOGGER = logging.getLogger(__name__)
 
 
-class DeviceManager(ctk.CTkToplevel):
+class DeviceManager(QtWidgets.QDialog):
     """Dialog allowing users to view discovered TVs, pair new devices, and manage saved profiles."""
 
     def __init__(
         self,
-        parent: tk.Misc,
+        parent: QtWidgets.QWidget | None,
         config_store: ConfigStore,
         cert_store: CertStore,
         discovery_service: DiscoveryService,
@@ -49,162 +46,104 @@ class DeviceManager(ctk.CTkToplevel):
         self._runner = async_runner
         self._on_tv_selected = on_tv_selected
 
-        self.title("Gerenciador de Android TVs")
-        if isinstance(parent, (tk.Tk, tk.Toplevel)):
-            self.transient(parent)
-        self.minsize(640, 390)
+        self.setWindowTitle("Gerenciador de Android TVs")
+        self.setModal(True)
+        self.resize(650, 400)
 
-        # Cache of rows: item_key -> DiscoveredTv | TvProfile
-        self._items: dict[str, DiscoveredTv | TvProfile] = {}
+        self._items: dict[int, DiscoveredTv | TvProfile] = {}
 
         self._build_ui()
         self._setup_events()
         self._refresh_list()
 
     def _build_ui(self) -> None:
-        btn_common: dict[str, Any] = {
-            "fg_color": ("#d4d4d8", "#3f3f46"),
-            "hover_color": ("#a1a1aa", "#52525b"),
-            "text_color": ("#18181b", "#f4f4f5"),
-            "corner_radius": 8,
-            "height": 32,
-            "font": ("Liberation Sans", 11),
-        }
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
 
-        main_frame = ctk.CTkFrame(self, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, padx=16, pady=16)
+        header = QtWidgets.QLabel("TVs Encontradas na Rede e Cadastradas", self)
+        header.setStyleSheet("font-size: 13px; font-weight: bold; color: #ffffff;")
+        layout.addWidget(header)
 
-        header_lbl = ctk.CTkLabel(
-            main_frame,
-            text="TVs Encontradas na Rede e Cadastradas",
-            font=("Liberation Sans", 13, "bold"),
-            anchor="w",
-        )
-        header_lbl.pack(fill="x", pady=(0, 10))
+        content_layout = QtWidgets.QHBoxLayout()
+        content_layout.setSpacing(10)
 
-        content_row = ctk.CTkFrame(main_frame, fg_color="transparent")
-        content_row.pack(fill="both", expand=True)
+        # Table
+        self._table = QtWidgets.QTableWidget(0, 4, self)
+        self._table.setHorizontalHeaderLabels(["Nome", "Endereço IP", "Status", "ID / MAC"])
+        if (h_header := self._table.horizontalHeader()) is not None:
+            h_header.setStretchLastSection(True)
+        self._table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self._table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.setColumnWidth(0, 180)
+        self._table.setColumnWidth(1, 120)
+        self._table.setColumnWidth(2, 160)
+        if (v_header := self._table.verticalHeader()) is not None:
+            v_header.setVisible(False)
+        self._table.itemDoubleClicked.connect(lambda _item: self._on_double_click())
+        content_layout.addWidget(self._table, stretch=1)
 
-        # Treeview table
-        columns = ("name", "host", "status", "id")
-        self._tree = ttk.Treeview(
-            content_row,
-            columns=columns,
-            show="headings",
-            selectmode="browse",
-            height=10,
-        )
-        self._tree.heading("name", text="Nome")
-        self._tree.heading("host", text="Endereço IP")
-        self._tree.heading("status", text="Status")
-        self._tree.heading("id", text="ID / MAC")
+        # Buttons Panel
+        btn_panel = QtWidgets.QVBoxLayout()
+        btn_panel.setSpacing(6)
 
-        self._tree.column("name", width=190)
-        self._tree.column("host", width=120)
-        self._tree.column("status", width=150)
-        self._tree.column("id", width=120)
+        self._btn_use = QtWidgets.QPushButton("Usar esta TV", self)
+        self._btn_use.setObjectName("primaryButton")
+        self._btn_use.clicked.connect(self._on_use_clicked)
+        btn_panel.addWidget(self._btn_use)
 
-        tree_scroll = ttk.Scrollbar(content_row, orient=tk.VERTICAL, command=self._tree.yview)
-        self._tree.configure(yscrollcommand=tree_scroll.set)
+        self._btn_pair = QtWidgets.QPushButton("Parear TV…", self)
+        self._btn_pair.clicked.connect(self._on_pair_clicked)
+        btn_panel.addWidget(self._btn_pair)
 
-        self._tree.pack(side="left", fill="both", expand=True)
-        tree_scroll.pack(side="left", fill="y", padx=(0, 10))
+        self._btn_rename = QtWidgets.QPushButton("Renomear…", self)
+        self._btn_rename.clicked.connect(self._on_rename_clicked)
+        btn_panel.addWidget(self._btn_rename)
 
-        # Right Action Buttons Panel
-        btn_panel = ctk.CTkFrame(content_row, fg_color="transparent")
-        btn_panel.pack(side="right", fill="y")
+        self._btn_forget = QtWidgets.QPushButton("Esquecer TV", self)
+        self._btn_forget.setObjectName("dangerButton")
+        self._btn_forget.clicked.connect(self._on_forget_clicked)
+        btn_panel.addWidget(self._btn_forget)
 
-        self._btn_use = ctk.CTkButton(
-            btn_panel,
-            text="Usar esta TV",
-            fg_color="#2563eb",
-            hover_color="#1d4ed8",
-            corner_radius=8,
-            height=32,
-            font=("Liberation Sans", 11, "bold"),
-            command=self._on_use_clicked,
-        )
-        self._btn_use.pack(fill="x", pady=(0, 6))
+        btn_panel.addSpacing(10)
 
-        self._btn_pair = ctk.CTkButton(
-            btn_panel,
-            text="Parear TV…",
-            fg_color="#3b82f6",
-            hover_color="#2563eb",
-            corner_radius=8,
-            height=32,
-            font=("Liberation Sans", 11),
-            command=self._on_pair_clicked,
-        )
-        self._btn_pair.pack(fill="x", pady=(0, 6))
+        self._btn_add_ip = QtWidgets.QPushButton("Adicionar por IP…", self)
+        self._btn_add_ip.clicked.connect(self._on_add_ip_clicked)
+        btn_panel.addWidget(self._btn_add_ip)
 
-        self._btn_rename = ctk.CTkButton(
-            btn_panel,
-            text="Renomear…",
-            command=self._on_rename_clicked,
-            **btn_common,
-        )
-        self._btn_rename.pack(fill="x", pady=(0, 6))
+        self._btn_scan = QtWidgets.QPushButton("Varredura Completa", self)
+        self._btn_scan.clicked.connect(self._on_scan_clicked)
+        btn_panel.addWidget(self._btn_scan)
 
-        self._btn_forget = ctk.CTkButton(
-            btn_panel,
-            text="Esquecer TV",
-            fg_color="#dc2626",
-            hover_color="#b91c1c",
-            text_color="#ffffff",
-            corner_radius=8,
-            height=32,
-            font=("Liberation Sans", 11),
-            command=self._on_forget_clicked,
-        )
-        self._btn_forget.pack(fill="x", pady=(0, 14))
+        btn_panel.addStretch(1)
 
-        self._btn_add_ip = ctk.CTkButton(
-            btn_panel,
-            text="Adicionar por IP…",
-            command=self._on_add_ip_clicked,
-            **btn_common,
-        )
-        self._btn_add_ip.pack(fill="x", pady=(0, 6))
+        content_layout.addLayout(btn_panel)
+        layout.addLayout(content_layout)
 
-        self._btn_scan = ctk.CTkButton(
-            btn_panel,
-            text="Varredura Completa",
-            command=self._on_scan_clicked,
-            **btn_common,
-        )
-        self._btn_scan.pack(fill="x", pady=(0, 6))
-
-        self._status_var = tk.StringVar(value="Varredura mDNS ativa em segundo plano.")
-        status_lbl = ctk.CTkLabel(
-            self,
-            textvariable=self._status_var,
-            font=("Liberation Sans", 10),
-            text_color=("#71717a", "#a1a1aa"),
-            anchor="w",
-        )
-        status_lbl.pack(side="bottom", fill="x", padx=16, pady=(0, 8))
-
-        self._tree.bind("<Double-1>", lambda _e: self._on_double_click())
+        # Status Label
+        self._status_lbl = QtWidgets.QLabel("Varredura mDNS ativa em segundo plano.", self)
+        self._status_lbl.setStyleSheet("color: #a1a1aa; font-size: 10px;")
+        layout.addWidget(self._status_lbl)
 
     def _setup_events(self) -> None:
         self._unsub_disc = self._event_bus.on_tv_discovered(lambda _tv: self._refresh_list())
         self._unsub_disp = self._event_bus.on_tv_disappeared(lambda _id: self._refresh_list())
 
-        def _cleanup() -> None:
-            self._unsub_disc()
-            self._unsub_disp()
-            self.destroy()
-
-        self.protocol("WM_DELETE_WINDOW", _cleanup)
+    def closeEvent(self, event: QtGui.QCloseEvent | None) -> None:
+        self._unsub_disc()
+        self._unsub_disp()
+        if event is not None:
+            super().closeEvent(event)
 
     def _refresh_list(self) -> None:
-        """Combine saved profiles and live discovered devices into the view."""
-        self._tree.delete(*self._tree.get_children())
+        self._table.setRowCount(0)
         self._items.clear()
 
         saved_tvs = {tv.id: tv for tv in self._config_store.list_tvs()}
         discovered_tvs = {tv.id or tv.host: tv for tv in self._discovery.discovered_tvs}
+
+        row_idx = 0
 
         # 1. Add saved TVs
         for tv_id, profile in saved_tvs.items():
@@ -221,12 +160,16 @@ class DeviceManager(ctk.CTkToplevel):
                 status = "Cadastrada (Offline)"
 
             host = disc.host if disc else profile.host
-            item_id = f"saved_{tv_id}"
-            self._items[item_id] = profile
-            self._tree.insert("", tk.END, iid=item_id, values=(profile.name, host, status, tv_id))
+            self._table.insertRow(row_idx)
+            self._table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(profile.name))
+            self._table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(host))
+            self._table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(status))
+            self._table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(tv_id))
+            self._items[row_idx] = profile
+            row_idx += 1
 
         # 2. Add un-paired discovered TVs
-        for disc_key, disc_tv in discovered_tvs.items():
+        for _disc_key, disc_tv in discovered_tvs.items():
             if disc_tv.id and disc_tv.id in saved_tvs:
                 continue
 
@@ -234,38 +177,41 @@ class DeviceManager(ctk.CTkToplevel):
             if disc_tv.in_standby:
                 status = "Nova (Standby)"
 
-            item_id = f"disc_{disc_key}"
-            self._items[item_id] = disc_tv
-            self._tree.insert(
-                "",
-                tk.END,
-                iid=item_id,
-                values=(disc_tv.name, disc_tv.host, status, disc_tv.id or "-"),
-            )
+            self._table.insertRow(row_idx)
+            self._table.setItem(row_idx, 0, QtWidgets.QTableWidgetItem(disc_tv.name))
+            self._table.setItem(row_idx, 1, QtWidgets.QTableWidgetItem(disc_tv.host))
+            self._table.setItem(row_idx, 2, QtWidgets.QTableWidgetItem(status))
+            self._table.setItem(row_idx, 3, QtWidgets.QTableWidgetItem(disc_tv.id or "-"))
+            self._items[row_idx] = disc_tv
+            row_idx += 1
 
     def _get_selected_item(self) -> DiscoveredTv | TvProfile | None:
-        selection = self._tree.selection()
-        if not selection:
+        sel_model = self._table.selectionModel()
+        if sel_model is None:
             return None
-        return self._items.get(selection[0])
+        rows = sel_model.selectedRows()
+        if not rows:
+            return None
+        return self._items.get(rows[0].row())
 
     def _on_use_clicked(self) -> None:
         item = self._get_selected_item()
         if not item:
-            messagebox.showinfo("Seleção", "Selecione uma TV na lista para usar.", parent=self)
+            QtWidgets.QMessageBox.information(
+                self, "Seleção", "Selecione uma TV na lista para usar."
+            )
             return
 
         if isinstance(item, TvProfile):
             self._on_tv_selected(item.id)
-            self.destroy()
+            self.accept()
         else:
-            # Unpaired discovered TV
-            res = messagebox.askyesno(
+            res = QtWidgets.QMessageBox.question(
+                self,
                 "Pareamento Necessário",
                 f"A TV '{item.name}' ainda não está pareada. Deseja pareá-la agora?",
-                parent=self,
             )
-            if res:
+            if res == QtWidgets.QMessageBox.StandardButton.Yes:
                 self._start_pairing_flow(item)
 
     def _on_double_click(self) -> None:
@@ -274,12 +220,14 @@ class DeviceManager(ctk.CTkToplevel):
     def _on_pair_clicked(self) -> None:
         item = self._get_selected_item()
         if not item:
-            messagebox.showinfo("Seleção", "Selecione uma TV na lista para parear.", parent=self)
+            QtWidgets.QMessageBox.information(
+                self, "Seleção", "Selecione uma TV na lista para parear."
+            )
             return
         self._start_pairing_flow(item)
 
     def _start_pairing_flow(self, target: DiscoveredTv | TvProfile) -> None:
-        self._status_var.set(f"Iniciando pareamento com {target.name}…")
+        self._status_lbl.setText(f"Iniciando pareamento com {target.name}…")
 
         async def _do_start() -> None:
             try:
@@ -288,53 +236,52 @@ class DeviceManager(ctk.CTkToplevel):
             except TvUnreachableError as exc:
                 err_text = str(exc)
                 self._runner.call_soon(
-                    lambda: messagebox.showerror("TV Inacessível", err_text, parent=self)
+                    lambda: QtWidgets.QMessageBox.critical(self, "TV Inacessível", err_text)
                 )
             except Exception as exc:
                 err_text = str(exc)
                 self._runner.call_soon(
-                    lambda: messagebox.showerror("Erro de Pareamento", err_text, parent=self)
+                    lambda: QtWidgets.QMessageBox.critical(self, "Erro de Pareamento", err_text)
                 )
             finally:
                 self._runner.call_soon(
-                    lambda: self._status_var.set("Varredura mDNS ativa em segundo plano.")
+                    lambda: self._status_lbl.setText("Varredura mDNS ativa em segundo plano.")
                 )
 
         self._runner.submit(_do_start())
 
     def _open_pair_dialog(self, session: PairingSession) -> None:
-        PairDialog(
+        dialog = PairDialog(
             parent=self,
             pairing_service=self._pairing,
             pairing_session=session,
             async_runner=self._runner,
             on_success=self._on_pair_success,
         )
+        dialog.exec()
 
     def _on_pair_success(self, profile: TvProfile) -> None:
         self._refresh_list()
-        messagebox.showinfo(
+        QtWidgets.QMessageBox.information(
+            self,
             "Sucesso",
             f"A TV '{profile.name}' foi pareada com sucesso!",
-            parent=self,
         )
         self._on_tv_selected(profile.id)
-        self.destroy()
+        self.accept()
 
     def _on_rename_clicked(self) -> None:
         item = self._get_selected_item()
         if not isinstance(item, TvProfile):
-            msg = "Selecione uma TV já cadastrada para renomear."
-            messagebox.showinfo("Renomear", msg, parent=self)
+            QtWidgets.QMessageBox.information(
+                self, "Renomear", "Selecione uma TV já cadastrada para renomear."
+            )
             return
 
-        new_name = simpledialog.askstring(
-            "Renomear TV",
-            f"Novo nome para '{item.name}':",
-            initialvalue=item.name,
-            parent=self,
+        new_name, ok = QtWidgets.QInputDialog.getText(
+            self, "Renomear TV", f"Novo nome para '{item.name}':", text=item.name
         )
-        if new_name and new_name.strip():
+        if ok and new_name.strip():
             updated = item.with_name(new_name.strip())
             self._config_store.save_tv(updated)
             self._refresh_list()
@@ -343,17 +290,18 @@ class DeviceManager(ctk.CTkToplevel):
     def _on_forget_clicked(self) -> None:
         item = self._get_selected_item()
         if not isinstance(item, TvProfile):
-            msg = "Selecione uma TV cadastrada para remover."
-            messagebox.showinfo("Esquecer TV", msg, parent=self)
+            QtWidgets.QMessageBox.information(
+                self, "Esquecer TV", "Selecione uma TV cadastrada para remover."
+            )
             return
 
-        confirmed = messagebox.askyesno(
+        res = QtWidgets.QMessageBox.question(
+            self,
             "Confirmar Remoção",
             f"Deseja esquecer e remover os certificados da TV '{item.name}'?\n"
             "Será necessário parear novamente para controlá-la.",
-            parent=self,
         )
-        if not confirmed:
+        if res != QtWidgets.QMessageBox.StandardButton.Yes:
             return
 
         if self._session.current_profile and self._session.current_profile.id == item.id:
@@ -365,16 +313,16 @@ class DeviceManager(ctk.CTkToplevel):
         self._on_tv_selected("")
 
     def _on_add_ip_clicked(self) -> None:
-        ip_addr = simpledialog.askstring(
+        ip_addr, ok = QtWidgets.QInputDialog.getText(
+            self,
             "Adicionar TV por IP",
             "Digite o endereço IPv4 da Android TV:\n(Ex: 192.168.2.104)",
-            parent=self,
         )
-        if not ip_addr or not ip_addr.strip():
+        if not ok or not ip_addr.strip():
             return
 
         host = ip_addr.strip()
-        self._status_var.set(f"Verificando {host}:6466…")
+        self._status_lbl.setText(f"Verificando {host}:6466…")
 
         async def _probe() -> None:
             try:
@@ -382,23 +330,23 @@ class DeviceManager(ctk.CTkToplevel):
                 self._runner.call_soon(lambda: self._start_pairing_flow(tv))
             except TvUnreachableError:
                 self._runner.call_soon(
-                    lambda: messagebox.showerror(
+                    lambda: QtWidgets.QMessageBox.critical(
+                        self,
                         "TV Inacessível",
                         f"Não foi possível conectar em {host}:6466.\n"
                         "Verifique se o IP está correto e a TV está ligada na mesma rede Wi-Fi.",
-                        parent=self,
                     )
                 )
             finally:
                 self._runner.call_soon(
-                    lambda: self._status_var.set("Varredura mDNS ativa em segundo plano.")
+                    lambda: self._status_lbl.setText("Varredura mDNS ativa em segundo plano.")
                 )
 
         self._runner.submit(_probe())
 
     def _on_scan_clicked(self) -> None:
-        self._status_var.set("Executando varredura TCP na sub-rede…")
-        self._btn_scan.configure(state="disabled")
+        self._status_lbl.setText("Executando varredura TCP na sub-rede…")
+        self._btn_scan.setEnabled(False)
 
         async def _do_scan() -> None:
             try:
@@ -410,5 +358,5 @@ class DeviceManager(ctk.CTkToplevel):
         self._runner.submit(_do_scan())
 
     def _on_scan_finished(self) -> None:
-        self._btn_scan.configure(state="normal")
-        self._status_var.set("Varredura concluída.")
+        self._btn_scan.setEnabled(True)
+        self._status_lbl.setText("Varredura concluída.")

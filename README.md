@@ -1,6 +1,6 @@
 # py-atv-remote
 
-Controle remoto desktop nativo para **Android TV** e **Google TV**, desenvolvido em Python e CustomTkinter utilizando o protocolo oficial **Google Remote V2 (mTLS)** sobre as portas `6466` e `6467`. Possui interface moderna com tema escuro elegante, cantos arredondados e suporte completo a múltiplos dispositivos.
+Controle remoto desktop nativo para **Android TV** e **Google TV**, desenvolvido em Python e PyQt6 utilizando o protocolo oficial **Google Remote V2 (mTLS)** sobre as portas `6466` e `6467`. Possui interface moderna com tema escuro elegante, renderização vetorial nítida com anti-aliasing nativo e suporte completo a múltiplos dispositivos.
 
 Diferente de soluções baseadas em ADB, o **py-atv-remote** conecta-se exatamente como o aplicativo móvel oficial do Google Home / Google TV: **sem necessidade de ativar o modo de desenvolvedor, sem emuladores e sem portas de depuração expostas na TV**.
 
@@ -28,7 +28,7 @@ Projetado especificamente para residências com **múltiplas televisões na mesm
 ## 📋 Requisitos
 
 - Sistema operacional Linux (testado em Fedora, Bazzite, Kinoite, Ubuntu, Arch).
-- **uv** (recomendado para empacotamento rápido com Python 3.13 e Tkinter nativo) ou Python 3.12+ com suporte a Tkinter.
+- **uv** (recomendado para execução rápida com ambiente virtual isolado) ou Python 3.10+.
 - TV e computador conectados na mesma rede local/Wi-Fi (portas `6466` e `6467` liberadas).
 
 ---

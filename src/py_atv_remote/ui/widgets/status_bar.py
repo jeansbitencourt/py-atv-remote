@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import tkinter as tk
-from typing import Any
-
-import customtkinter as ctk
+from PyQt6 import QtCore, QtWidgets
 
 from py_atv_remote.domain.models import ConnectionState, VolumeState
 
@@ -29,44 +26,41 @@ STATE_LABELS: dict[ConnectionState, str] = {
 }
 
 
-class StatusBar(ctk.CTkFrame):
+class StatusBar(QtWidgets.QFrame):
     """Displays connection status indicator, app name, and volume level."""
 
-    def __init__(self, master: tk.Misc, **kwargs: Any) -> None:
-        kwargs.setdefault("corner_radius", 8)
-        kwargs.setdefault("fg_color", ("#e4e4e7", "#27272a"))
-        kwargs.setdefault("height", 28)
-        super().__init__(master, **kwargs)
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("statusBar")
+        self.setFixedHeight(30)
 
-        initial_color = STATE_COLORS[ConnectionState.IDLE]
-        self._dot = ctk.CTkLabel(
-            self,
-            text="●",
-            font=("Liberation Sans", 12),
-            text_color=initial_color,
-            width=16,
-        )
-        self._dot.pack(side="left", padx=(8, 2), pady=2)
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(6)
 
-        self._text_var = tk.StringVar(value=STATE_LABELS[ConnectionState.IDLE])
-        self._label = ctk.CTkLabel(
-            self,
-            textvariable=self._text_var,
-            font=("Liberation Sans", 10),
-            text_color=("#18181b", "#d4d4d8"),
-            anchor="w",
+        self._dot = QtWidgets.QLabel("●", self)
+        self._dot.setFixedWidth(14)
+        self._dot.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
+
+        self._label = QtWidgets.QLabel(STATE_LABELS[ConnectionState.IDLE], self)
+        self._label.setAlignment(
+            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
         )
-        self._label.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=2)
+
+        layout.addWidget(self._dot)
+        layout.addWidget(self._label, stretch=1)
 
         self._state = ConnectionState.IDLE
         self._current_app: str | None = None
         self._volume: VolumeState | None = None
 
+        self._update_dot_color(STATE_COLORS[ConnectionState.IDLE])
+
     def update_state(self, state: ConnectionState) -> None:
         """Update connection state and refresh display."""
         self._state = state
         color = STATE_COLORS.get(state, "#71717a")
-        self._dot.configure(text_color=color)
+        self._update_dot_color(color)
         self._refresh_text()
 
     def update_current_app(self, app_id: str | None) -> None:
@@ -78,6 +72,9 @@ class StatusBar(ctk.CTkFrame):
         """Update volume level and mute state."""
         self._volume = volume
         self._refresh_text()
+
+    def _update_dot_color(self, hex_color: str) -> None:
+        self._dot.setStyleSheet(f"color: {hex_color}; font-size: 13px;")
 
     def _refresh_text(self) -> None:
         parts: list[str] = [STATE_LABELS.get(self._state, "Desconhecido")]
@@ -93,7 +90,7 @@ class StatusBar(ctk.CTkFrame):
                 else:
                     parts.append(f"Vol {self._volume.level}/{self._volume.max_level}")
 
-        self._text_var.set(" · ".join(parts))
+        self._label.setText(" · ".join(parts))
 
     @staticmethod
     def _format_app_name(package: str) -> str:

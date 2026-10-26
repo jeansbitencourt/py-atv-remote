@@ -1,70 +1,62 @@
-"""Keyboard shortcut mappings for the remote control."""
+"""Keyboard shortcut mappings for the remote control built with PyQt6."""
 
 from __future__ import annotations
 
-import tkinter as tk
 from collections.abc import Callable
-from tkinter import ttk
 
-import customtkinter as ctk
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from py_atv_remote.domain.keys import RemoteKey
 
-# Key symbols mapped to RemoteKey
-KEY_MAP: dict[str, RemoteKey] = {
+KEY_MAP: dict[int, RemoteKey] = {
     # Navigation
-    "Up": RemoteKey.DPAD_UP,
-    "Down": RemoteKey.DPAD_DOWN,
-    "Left": RemoteKey.DPAD_LEFT,
-    "Right": RemoteKey.DPAD_RIGHT,
-    "Return": RemoteKey.DPAD_CENTER,
-    "KP_Enter": RemoteKey.DPAD_CENTER,
-    # Navigation / System
-    "Escape": RemoteKey.BACK,
-    "BackSpace": RemoteKey.BACK,
-    "Home": RemoteKey.HOME,
+    QtCore.Qt.Key.Key_Up.value: RemoteKey.DPAD_UP,
+    QtCore.Qt.Key.Key_Down.value: RemoteKey.DPAD_DOWN,
+    QtCore.Qt.Key.Key_Left.value: RemoteKey.DPAD_LEFT,
+    QtCore.Qt.Key.Key_Right.value: RemoteKey.DPAD_RIGHT,
+    QtCore.Qt.Key.Key_Return.value: RemoteKey.DPAD_CENTER,
+    QtCore.Qt.Key.Key_Enter.value: RemoteKey.DPAD_CENTER,
+    # System
+    QtCore.Qt.Key.Key_Escape.value: RemoteKey.BACK,
+    QtCore.Qt.Key.Key_Backspace.value: RemoteKey.BACK,
+    QtCore.Qt.Key.Key_Home.value: RemoteKey.HOME,
     # Volume
-    "plus": RemoteKey.VOLUME_UP,
-    "equal": RemoteKey.VOLUME_UP,
-    "KP_Add": RemoteKey.VOLUME_UP,
-    "minus": RemoteKey.VOLUME_DOWN,
-    "KP_Subtract": RemoteKey.VOLUME_DOWN,
+    QtCore.Qt.Key.Key_Plus.value: RemoteKey.VOLUME_UP,
+    QtCore.Qt.Key.Key_Equal.value: RemoteKey.VOLUME_UP,
+    QtCore.Qt.Key.Key_Minus.value: RemoteKey.VOLUME_DOWN,
     # Media
-    "space": RemoteKey.MEDIA_PLAY_PAUSE,
+    QtCore.Qt.Key.Key_Space.value: RemoteKey.MEDIA_PLAY_PAUSE,
 }
 
 
-def register_keybindings(
-    root: tk.Misc,
+def handle_key_event(
+    event: QtGui.QKeyEvent,
+    window: QtWidgets.QWidget,
     on_key: Callable[[RemoteKey], None],
     is_enabled: Callable[[], bool],
-) -> None:
-    """Attach keyboard event listeners to the window root."""
+) -> bool:
+    """Handle physical key press and dispatch matching RemoteKey."""
+    if not is_enabled():
+        return False
 
-    def _on_key_press(event: tk.Event[tk.Misc]) -> None:
-        if not is_enabled():
-            return
+    focused = window.focusWidget()
+    if isinstance(focused, QtWidgets.QLineEdit):
+        if event.key() == QtCore.Qt.Key.Key_Escape:
+            focused.clearFocus()
+            return True
+        return False
 
-        # If user is focused on an Entry, Text or Combobox, do not intercept normal typing!
-        focused = root.focus_get()
-        if isinstance(focused, (tk.Entry, ttk.Entry, tk.Text, ctk.CTkEntry)):
-            # Allow Escape in text input to unfocus
-            if event.keysym == "Escape":
-                root.focus_set()
-            return
+    key = event.key()
+    if key in (QtCore.Qt.Key.Key_H,):
+        on_key(RemoteKey.HOME)
+        return True
+    if key in (QtCore.Qt.Key.Key_M,):
+        on_key(RemoteKey.MUTE)
+        return True
 
-        keysym = event.keysym
+    remote_key = KEY_MAP.get(key)
+    if remote_key:
+        on_key(remote_key)
+        return True
 
-        # Case-insensitive letter shortcuts when not typing
-        if keysym in ("h", "H"):
-            on_key(RemoteKey.HOME)
-            return
-        if keysym in ("m", "M"):
-            on_key(RemoteKey.MUTE)
-            return
-
-        remote_key = KEY_MAP.get(keysym)
-        if remote_key:
-            on_key(remote_key)
-
-    root.bind("<Key>", _on_key_press)
+    return False

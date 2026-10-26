@@ -6,7 +6,7 @@ This document serves as the architectural reference and development playbook for
 
 ## 1. Project Overview
 
-`py-atv-remote` is a native desktop remote control application for Android TV and Google TV built with Python, CustomTkinter, and the Google Remote V2 protocol (mTLS on ports 6466/6467). It supports multiple TVs on the local network, persistent TLS sessions, automatic DHCP IP synchronization, Wake-on-LAN, and desktop environment integration.
+`py-atv-remote` is a native desktop remote control application for Android TV and Google TV built with Python, PyQt6, and the Google Remote V2 protocol (mTLS on ports 6466/6467). It supports multiple TVs on the local network, persistent TLS sessions, automatic DHCP IP synchronization, Wake-on-LAN, and desktop environment integration.
 
 ---
 
@@ -15,7 +15,7 @@ This document serves as the architectural reference and development playbook for
 The project strictly follows layered clean architecture. Dependencies only point inward:
 
 ```
-UI (CustomTkinter / Tkinter)
+UI (PyQt6 / Qt)
     ↓
 Services (Orchestration & Application Logic)
     ↓
@@ -47,7 +47,7 @@ Domain (Entities, Value Objects, Enums, Errors)
   - `pairing_service.py`: Coordinates mTLS cert generation, PIN validation handshake, and profile creation.
 
 - **UI (`src/py_atv_remote/ui/`)**:
-  - `tk_dispatcher.py`: Bridges the background asyncio loop and Tkinter main loop using a thread-safe `queue.SimpleQueue` drained via `root.after()`.
+  - `qt_dispatcher.py`: Bridges the background asyncio loop and Qt GUI thread using thread-safe Qt Signals/Slots (`pyqtSignal(object)`).
   - `main_window.py`: Primary remote control window with TV selector, D-Pad, media keys, volume, text input, and status bar.
   - `device_manager.py`: Dialog for live network discovery, pairing, manual IP probing, and profile management.
   - `pair_dialog.py`: PIN entry modal.
@@ -59,10 +59,10 @@ Domain (Entities, Value Objects, Enums, Errors)
 
 ## 3. Strict Concurrency & Threading Invariants
 
-1. **Tkinter Main Thread Invariant**: All Tkinter widget creation, geometry management, and UI state mutations **MUST** execute exclusively on the main thread.
-2. **Never Call Tk Directly From Background Threads**: Never invoke Tk methods directly from asyncio tasks or background threads. Always post through `Dispatcher.post()` or `TkDispatcher.post()`, or emit typed events via `EventBus`.
+1. **Qt Main Thread Invariant**: All Qt widget creation, geometry management, and UI state mutations **MUST** execute exclusively on the main thread.
+2. **Never Call Qt Directly From Background Threads**: Never invoke widget methods directly from asyncio tasks or background threads. Always post through `Dispatcher.post()` or `QtDispatcher.post()`, or emit typed events via `EventBus`.
 3. **Non-Blocking Main Loop**: Network I/O, TLS handshakes, mDNS browsing, and port probes **MUST NEVER** execute on the main thread. Always schedule them onto `AsyncRunner` using `runner.submit(coroutine)`.
-4. **Orderly Shutdown**: When the application closes (`WM_DELETE_WINDOW`), the session must disconnect, discovery browser must be cancelled, background runner tasks must be cancelled, and loops properly closed.
+4. **Orderly Shutdown**: When the application closes (`closeEvent` / `aboutToQuit`), the session must disconnect, discovery browser must be cancelled, background runner tasks must be cancelled, and loops properly closed.
 
 ---
 

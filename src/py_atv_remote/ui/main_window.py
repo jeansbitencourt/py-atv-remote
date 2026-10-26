@@ -1,15 +1,11 @@
-"""Main desktop application window for py-atv-remote built with CustomTkinter."""
+"""Main desktop application window for py-atv-remote built with PyQt6."""
 
 from __future__ import annotations
 
 import logging
-import tkinter as tk
 from collections.abc import Callable
-from tkinter import messagebox
-from typing import Any
 
-import customtkinter as ctk
-from customtkinter.windows.widgets.core_rendering import DrawEngine
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from py_atv_remote.domain.keys import RemoteKey
 from py_atv_remote.domain.models import ConnectionState, TvProfile, VolumeState
@@ -17,31 +13,28 @@ from py_atv_remote.infrastructure.config_store import ConfigStore
 from py_atv_remote.services.async_runner import AsyncRunner
 from py_atv_remote.services.events import EventBus
 from py_atv_remote.services.remote_session import RemoteSessionService
-from py_atv_remote.ui.keybindings import register_keybindings
+from py_atv_remote.ui.keybindings import handle_key_event
 from py_atv_remote.ui.widgets.dpad import DPad
 from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 from py_atv_remote.ui.widgets.status_bar import StatusBar
 
-# Force circle_shapes on Linux so Tkinter Canvas renders solid rounded corners and chevron arrows
-DrawEngine.preferred_drawing_method = "circle_shapes"
-
 LOGGER = logging.getLogger(__name__)
 
 
-class MainWindow:
+class MainWindow(QtWidgets.QMainWindow):
     """Main window controller for the remote control application."""
 
     def __init__(
         self,
-        root: ctk.CTk,
         config_store: ConfigStore,
         remote_session: RemoteSessionService,
         event_bus: EventBus,
         async_runner: AsyncRunner,
         open_device_manager: Callable[[], None],
         open_shortcuts_dialog: Callable[[], None],
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
-        self._root = root
+        super().__init__(parent)
         self._config_store = config_store
         self._session = remote_session
         self._event_bus = event_bus
@@ -58,308 +51,203 @@ class MainWindow:
         self._load_saved_tvs()
 
     def _setup_window(self) -> None:
-        self._root.title("py-atv-remote")
-        # Set authentic vertical remote control dimensions
-        self._root.geometry("310x590")
-        self._root.minsize(310, 590)
-        self._root.resizable(False, False)
+        self.setWindowTitle("py-atv-remote")
+        self.setFixedSize(324, 600)
+
         # Apply always-on-top preference
         always_on_top = self._config_store.get_always_on_top()
-        self._root.attributes("-topmost", always_on_top)
+        if always_on_top:
+            self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowType.WindowStaysOnTopHint)
 
     def _build_ui(self) -> None:
-        btn_common: dict[str, Any] = {
-            "fg_color": ("#d4d4d8", "#3f3f46"),
-            "hover_color": ("#a1a1aa", "#52525b"),
-            "text_color": ("#18181b", "#f4f4f5"),
-            "corner_radius": 8,
-            "height": 32,
-            "font": ("Liberation Sans", 10, "bold"),
-        }
+        central_widget = QtWidgets.QWidget(self)
+        self.setCentralWidget(central_widget)
 
-        # 1. Header Frame: TV Selector + Manage Devices (+) + Settings Menu (Opções)
-        header_frame = ctk.CTkFrame(self._root, fg_color="transparent")
-        header_frame.pack(fill="x", padx=12, pady=(10, 4))
+        main_layout = QtWidgets.QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(12, 10, 12, 10)
+        main_layout.setSpacing(4)
 
-        self._tv_selector_var = tk.StringVar()
-        self._tv_selector = ctk.CTkOptionMenu(
-            header_frame,
-            variable=self._tv_selector_var,
-            values=["Nenhuma TV cadastrada"],
-            command=self._on_tv_option_selected,
-            height=32,
-            corner_radius=8,
-            fg_color=("#e4e4e7", "#27272a"),
-            button_color=("#d4d4d8", "#3f3f46"),
-            button_hover_color=("#a1a1aa", "#52525b"),
-            text_color=("#18181b", "#f4f4f5"),
-            dropdown_fg_color=("#f4f4f5", "#27272a"),
-            dropdown_text_color=("#18181b", "#f4f4f5"),
-            dropdown_hover_color=("#d4d4d8", "#3f3f46"),
-            font=("Liberation Sans", 10),
-        )
-        self._tv_selector.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        # 1. Header Frame: TV Selector + Manage Devices (+) + Settings Menu (⚙)
+        header_layout = QtWidgets.QHBoxLayout()
+        header_layout.setSpacing(6)
 
-        self._btn_add_tv = ctk.CTkButton(
-            header_frame,
-            text="+",
-            width=32,
-            height=32,
-            corner_radius=8,
-            font=("Liberation Sans", 14, "bold"),
-            fg_color=("#d4d4d8", "#3f3f46"),
-            hover_color=("#a1a1aa", "#52525b"),
-            text_color=("#18181b", "#f4f4f5"),
-            command=self._open_device_manager,
-        )
-        self._btn_add_tv.pack(side="left", padx=(0, 6))
+        self._tv_selector = QtWidgets.QComboBox(self)
+        self._tv_selector.setFixedHeight(32)
+        self._tv_selector.currentTextChanged.connect(self._on_tv_option_selected)
+        header_layout.addWidget(self._tv_selector, stretch=1)
 
-        self._btn_menu = ctk.CTkButton(
-            header_frame,
-            text="Opções",
-            width=62,
-            height=32,
-            corner_radius=8,
-            font=("Liberation Sans", 10, "bold"),
-            fg_color=("#d4d4d8", "#3f3f46"),
-            hover_color=("#a1a1aa", "#52525b"),
-            text_color=("#18181b", "#f4f4f5"),
-            command=self._show_options_menu,
-        )
-        self._btn_menu.pack(side="left")
+        self._btn_add_tv = QtWidgets.QPushButton("+", self)
+        self._btn_add_tv.setFixedSize(32, 32)
+        self._btn_add_tv.setToolTip("Gerenciar e Parear TVs")
+        self._btn_add_tv.clicked.connect(self._open_device_manager)
+        header_layout.addWidget(self._btn_add_tv)
 
-        # Native popup menu for options
-        self._menu = tk.Menu(self._root, tearoff=0)
-        self._menu_always_top_var = tk.BooleanVar(value=self._config_store.get_always_on_top())
-        self._menu.add_checkbutton(
-            label="Sempre no topo",
-            variable=self._menu_always_top_var,
-            command=self._toggle_always_on_top,
-        )
-        self._menu.add_separator()
-        self._menu.add_command(label="Gerenciar TVs…", command=self._open_device_manager)
-        self._menu.add_command(
-            label="Editar Atalhos de Apps…",
-            command=self._open_shortcuts_dialog,
-        )
+        self._btn_menu = QtWidgets.QPushButton("⚙", self)
+        self._btn_menu.setObjectName("headerMenuButton")
+        self._btn_menu.setFixedSize(32, 32)
+        self._btn_menu.setToolTip("Opções")
+        self._options_menu = QtWidgets.QMenu(self._btn_menu)
+
+        self._action_always_top = QtGui.QAction("Sempre no topo", self)
+        self._action_always_top.setCheckable(True)
+        self._action_always_top.setChecked(self._config_store.get_always_on_top())
+        self._action_always_top.triggered.connect(self._toggle_always_on_top)
+        self._options_menu.addAction(self._action_always_top)
+
+        self._options_menu.addSeparator()
+
+        action_manage = QtGui.QAction("Gerenciar TVs…", self)
+        action_manage.triggered.connect(self._open_device_manager)
+        self._options_menu.addAction(action_manage)
+
+        action_shortcuts = QtGui.QAction("Editar Atalhos de Apps…", self)
+        action_shortcuts.triggered.connect(self._open_shortcuts_dialog)
+        self._options_menu.addAction(action_shortcuts)
+
+        self._btn_menu.setMenu(self._options_menu)
+        header_layout.addWidget(self._btn_menu)
+
+        main_layout.addLayout(header_layout)
 
         # 2. Status Bar
-        self._status_bar = StatusBar(self._root)
-        self._status_bar.pack(fill="x", padx=12, pady=(0, 4))
+        self._status_bar = StatusBar(self)
+        main_layout.addWidget(self._status_bar)
 
         # 3. Needs Pairing Banner (hidden by default)
-        self._pairing_banner = ctk.CTkFrame(self._root, fg_color="#1e3a8a", corner_radius=8)
-        self._lbl_pairing = ctk.CTkLabel(
-            self._pairing_banner,
-            text="Esta TV precisa ser pareada.",
-            font=("Liberation Sans", 10),
-            text_color="#ffffff",
-        )
-        self._lbl_pairing.pack(side="left", padx=8, pady=3)
-        self._btn_pair_banner = ctk.CTkButton(
-            self._pairing_banner,
-            text="Parear",
-            width=68,
-            height=26,
-            corner_radius=6,
-            fg_color="#2563eb",
-            hover_color="#1d4ed8",
-            font=("Liberation Sans", 10, "bold"),
-            command=self._open_device_manager,
-        )
-        self._btn_pair_banner.pack(side="right", padx=8, pady=3)
+        self._pairing_banner = QtWidgets.QFrame(self)
+        self._pairing_banner.setObjectName("pairingBanner")
+        self._pairing_banner.setVisible(False)
+        banner_layout = QtWidgets.QHBoxLayout(self._pairing_banner)
+        banner_layout.setContentsMargins(8, 4, 8, 4)
+
+        lbl_pairing = QtWidgets.QLabel("Esta TV precisa ser pareada.", self)
+        lbl_pairing.setStyleSheet("color: #ffffff; font-size: 11px;")
+        banner_layout.addWidget(lbl_pairing, stretch=1)
+
+        btn_pair_banner = QtWidgets.QPushButton("Parear Agora", self)
+        btn_pair_banner.setObjectName("primaryButton")
+        btn_pair_banner.setFixedHeight(26)
+        btn_pair_banner.clicked.connect(self._open_device_manager)
+        banner_layout.addWidget(btn_pair_banner)
+
+        main_layout.addWidget(self._pairing_banner)
 
         # 4. Top Action Row: Power, Menu, Settings
-        top_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        top_row.pack(fill="x", padx=12, pady=2)
+        top_row = QtWidgets.QHBoxLayout()
+        top_row.setSpacing(6)
 
-        self._btn_power = ctk.CTkButton(
-            top_row,
-            text="Power",
-            width=88,
-            height=32,
-            font=("Liberation Sans", 10, "bold"),
-            fg_color="#dc2626",
-            hover_color="#b91c1c",
-            text_color="#ffffff",
-            corner_radius=8,
-            command=self._on_power_pressed,
-        )
-        self._btn_power.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_power = QtWidgets.QPushButton("Power", self)
+        self._btn_power.setObjectName("powerButton")
+        self._btn_power.setFixedHeight(32)
+        self._btn_power.clicked.connect(self._on_power_pressed)
+        top_row.addWidget(self._btn_power)
 
-        self._btn_tv_menu = ctk.CTkButton(
-            top_row,
-            text="Menu",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.MENU),
-            **btn_common,
-        )
-        self._btn_tv_menu.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_tv_menu = QtWidgets.QPushButton("Menu", self)
+        self._btn_tv_menu.setFixedHeight(32)
+        self._btn_tv_menu.clicked.connect(lambda: self._send_key(RemoteKey.MENU))
+        top_row.addWidget(self._btn_tv_menu)
 
-        self._btn_tv_settings = ctk.CTkButton(
-            top_row,
-            text="Ajustes",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.SETTINGS),
-            **btn_common,
-        )
-        self._btn_tv_settings.pack(side="left", fill="x", expand=True)
+        self._btn_tv_settings = QtWidgets.QPushButton("Ajustes", self)
+        self._btn_tv_settings.setFixedHeight(32)
+        self._btn_tv_settings.clicked.connect(lambda: self._send_key(RemoteKey.SETTINGS))
+        top_row.addWidget(self._btn_tv_settings)
+
+        main_layout.addLayout(top_row)
 
         # 5. D-Pad Frame
-        dpad_frame = ctk.CTkFrame(self._root, fg_color="transparent")
-        dpad_frame.pack(padx=12, pady=4)
-        self._dpad = DPad(dpad_frame, on_key=self._send_key)
-        self._dpad.pack()
+        self._dpad = DPad(on_key=self._send_key, parent=self)
+        main_layout.addWidget(self._dpad, alignment=QtCore.Qt.AlignmentFlag.AlignCenter)
 
         # 6. System Row: Voltar, Início
-        sys_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        sys_row.pack(fill="x", padx=12, pady=2)
+        sys_row = QtWidgets.QHBoxLayout()
+        sys_row.setSpacing(6)
 
-        self._btn_back = ctk.CTkButton(
-            sys_row,
-            text="Voltar",
-            width=135,
-            command=lambda: self._send_key(RemoteKey.BACK),
-            **btn_common,
-        )
-        self._btn_back.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_back = QtWidgets.QPushButton("Voltar", self)
+        self._btn_back.setFixedHeight(32)
+        self._btn_back.clicked.connect(lambda: self._send_key(RemoteKey.BACK))
+        sys_row.addWidget(self._btn_back)
 
-        self._btn_home = ctk.CTkButton(
-            sys_row,
-            text="Início",
-            width=135,
-            command=lambda: self._send_key(RemoteKey.HOME),
-            **btn_common,
-        )
-        self._btn_home.pack(side="left", fill="x", expand=True)
+        self._btn_home = QtWidgets.QPushButton("Início", self)
+        self._btn_home.setFixedHeight(32)
+        self._btn_home.clicked.connect(lambda: self._send_key(RemoteKey.HOME))
+        sys_row.addWidget(self._btn_home)
+
+        main_layout.addLayout(sys_row)
 
         # 7. Media Row: ◄◄, ►||, ►►
-        media_common: dict[str, Any] = {
-            "fg_color": ("#cbd5e1", "#334155"),
-            "hover_color": ("#94a3b8", "#475569"),
-            "text_color": ("#18181b", "#f4f4f5"),
-            "corner_radius": 8,
-            "height": 32,
-            "font": ("Liberation Sans", 11, "bold"),
-        }
-        media_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        media_row.pack(fill="x", padx=12, pady=2)
+        media_row = QtWidgets.QHBoxLayout()
+        media_row.setSpacing(6)
 
-        self._btn_rewind = ctk.CTkButton(
-            media_row,
-            text="◄◄",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.MEDIA_REWIND),
-            **media_common,
-        )
-        self._btn_rewind.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_rewind = QtWidgets.QPushButton("◄◄", self)
+        self._btn_rewind.setObjectName("mediaButton")
+        self._btn_rewind.setFixedHeight(32)
+        self._btn_rewind.clicked.connect(lambda: self._send_key(RemoteKey.MEDIA_REWIND))
+        media_row.addWidget(self._btn_rewind)
 
-        self._btn_play_pause = ctk.CTkButton(
-            media_row,
-            text="►||",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.MEDIA_PLAY_PAUSE),
-            **media_common,
-        )
-        self._btn_play_pause.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_play_pause = QtWidgets.QPushButton("►||", self)
+        self._btn_play_pause.setObjectName("mediaButton")
+        self._btn_play_pause.setFixedHeight(32)
+        self._btn_play_pause.clicked.connect(lambda: self._send_key(RemoteKey.MEDIA_PLAY_PAUSE))
+        media_row.addWidget(self._btn_play_pause)
 
-        self._btn_fast_forward = ctk.CTkButton(
-            media_row,
-            text="►►",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.MEDIA_FAST_FORWARD),
-            **media_common,
-        )
-        self._btn_fast_forward.pack(side="left", fill="x", expand=True)
+        self._btn_fast_forward = QtWidgets.QPushButton("►►", self)
+        self._btn_fast_forward.setObjectName("mediaButton")
+        self._btn_fast_forward.setFixedHeight(32)
+        self._btn_fast_forward.clicked.connect(lambda: self._send_key(RemoteKey.MEDIA_FAST_FORWARD))
+        media_row.addWidget(self._btn_fast_forward)
+
+        main_layout.addLayout(media_row)
 
         # 8. Volume Row: Vol -, Mudo, Vol +
-        vol_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        vol_row.pack(fill="x", padx=12, pady=2)
+        vol_row = QtWidgets.QHBoxLayout()
+        vol_row.setSpacing(6)
 
         self._btn_vol_down = RepeatButton(
-            vol_row,
-            text="Vol -",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.VOLUME_DOWN),
-            **btn_common,
+            "Vol -", self, command=lambda: self._send_key(RemoteKey.VOLUME_DOWN)
         )
-        self._btn_vol_down.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_vol_down.setFixedHeight(32)
+        vol_row.addWidget(self._btn_vol_down)
 
-        self._btn_mute = ctk.CTkButton(
-            vol_row,
-            text="Mudo",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.MUTE),
-            **btn_common,
-        )
-        self._btn_mute.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self._btn_mute = QtWidgets.QPushButton("Mudo", self)
+        self._btn_mute.setFixedHeight(32)
+        self._btn_mute.clicked.connect(lambda: self._send_key(RemoteKey.MUTE))
+        vol_row.addWidget(self._btn_mute)
 
         self._btn_vol_up = RepeatButton(
-            vol_row,
-            text="Vol +",
-            width=88,
-            command=lambda: self._send_key(RemoteKey.VOLUME_UP),
-            **btn_common,
+            "Vol +", self, command=lambda: self._send_key(RemoteKey.VOLUME_UP)
         )
-        self._btn_vol_up.pack(side="left", fill="x", expand=True)
+        self._btn_vol_up.setFixedHeight(32)
+        vol_row.addWidget(self._btn_vol_up)
+
+        main_layout.addLayout(vol_row)
 
         # 9. App Shortcuts Container (2-column grid for clean fit)
-        self._shortcuts_frame = ctk.CTkFrame(self._root, fg_color="transparent")
-        self._shortcuts_frame.pack(fill="x", padx=12, pady=2)
+        self._shortcuts_widget = QtWidgets.QWidget(self)
+        self._shortcuts_layout = QtWidgets.QGridLayout(self._shortcuts_widget)
+        self._shortcuts_layout.setContentsMargins(0, 0, 0, 0)
+        self._shortcuts_layout.setSpacing(4)
+        main_layout.addWidget(self._shortcuts_widget)
         self.refresh_app_shortcuts()
 
         # 10. Text Input Row
-        text_row = ctk.CTkFrame(self._root, fg_color="transparent")
-        text_row.pack(fill="x", padx=12, pady=(4, 10))
+        text_row = QtWidgets.QHBoxLayout()
+        text_row.setSpacing(6)
 
-        self._text_var = tk.StringVar()
-        self._txt_input = ctk.CTkEntry(
-            text_row,
-            textvariable=self._text_var,
-            placeholder_text="Digitar na TV…",
-            fg_color=("#f4f4f5", "#27272a"),
-            border_color=("#d4d4d8", "#3f3f46"),
-            text_color=("#18181b", "#f4f4f5"),
-            corner_radius=8,
-            height=32,
-            font=("Liberation Sans", 10),
-        )
-        self._txt_input.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        self._txt_input.bind("<Return>", lambda _e: self._on_send_text())
+        self._txt_input = QtWidgets.QLineEdit(self)
+        self._txt_input.setPlaceholderText("Digitar na TV…")
+        self._txt_input.setFixedHeight(32)
+        self._txt_input.returnPressed.connect(self._on_send_text)
+        text_row.addWidget(self._txt_input, stretch=1)
 
-        self._btn_send_text = ctk.CTkButton(
-            text_row,
-            text="Enviar",
-            width=62,
-            height=32,
-            corner_radius=8,
-            fg_color="#2563eb",
-            hover_color="#1d4ed8",
-            font=("Liberation Sans", 10, "bold"),
-            command=self._on_send_text,
-        )
-        self._btn_send_text.pack(side="right")
+        self._btn_send_text = QtWidgets.QPushButton("Enviar", self)
+        self._btn_send_text.setObjectName("primaryButton")
+        self._btn_send_text.setFixedSize(62, 32)
+        self._btn_send_text.clicked.connect(self._on_send_text)
+        text_row.addWidget(self._btn_send_text)
 
-        def is_ctrl_enabled() -> bool:
-            return self._session.state in (
-                ConnectionState.CONNECTED,
-                ConnectionState.RECONNECTING,
-            )
-
-        # Register physical keyboard shortcuts
-        register_keybindings(
-            self._root,
-            on_key=self._send_key,
-            is_enabled=is_ctrl_enabled,
-        )
+        main_layout.addLayout(text_row)
 
         self._update_controls_state(ConnectionState.IDLE)
-
-    def _show_options_menu(self) -> None:
-        """Display options dropdown menu under settings button."""
-        x = self._btn_menu.winfo_rootx()
-        y = self._btn_menu.winfo_rooty() + self._btn_menu.winfo_height() + 2
-        self._menu.post(x, y)
 
     def _setup_event_subscriptions(self) -> None:
         self._event_bus.on_state(self._on_state_event)
@@ -370,10 +258,12 @@ class MainWindow:
     def _load_saved_tvs(self) -> None:
         self._tvs = self._config_store.list_tvs()
         names = [tv.name for tv in self._tvs]
+        self._tv_selector.blockSignals(True)
+        self._tv_selector.clear()
         if names:
-            self._tv_selector.configure(values=names)
+            self._tv_selector.addItems(names)
         else:
-            self._tv_selector.configure(values=["Nenhuma TV cadastrada"])
+            self._tv_selector.addItem("Nenhuma TV cadastrada")
 
         last_id = self._config_store.get_last_selected_id()
         selected_index = -1
@@ -385,25 +275,29 @@ class MainWindow:
 
         if selected_index >= 0:
             target = self._tvs[selected_index]
-            self._tv_selector.set(target.name)
+            self._tv_selector.setCurrentIndex(selected_index)
             self._selected_tv_id = target.id
+            self._tv_selector.blockSignals(False)
             self._connect_to_selected_tv()
         elif self._tvs:
             target = self._tvs[0]
-            self._tv_selector.set(target.name)
+            self._tv_selector.setCurrentIndex(0)
             self._selected_tv_id = target.id
+            self._tv_selector.blockSignals(False)
             self._connect_to_selected_tv()
         else:
-            self._tv_selector.set("Nenhuma TV cadastrada")
+            self._tv_selector.blockSignals(False)
 
     def refresh_tvs(self, selected_tv_id: str | None = None) -> None:
         """Reload the list of saved TVs in the selector dropdown."""
         self._tvs = self._config_store.list_tvs()
         names = [tv.name for tv in self._tvs]
+        self._tv_selector.blockSignals(True)
+        self._tv_selector.clear()
         if names:
-            self._tv_selector.configure(values=names)
+            self._tv_selector.addItems(names)
         else:
-            self._tv_selector.configure(values=["Nenhuma TV cadastrada"])
+            self._tv_selector.addItem("Nenhuma TV cadastrada")
 
         last_id = self._config_store.get_last_selected_id()
         target_id = selected_tv_id or self._selected_tv_id or last_id
@@ -415,51 +309,42 @@ class MainWindow:
                     break
 
         if selected_idx >= 0:
-            target = self._tvs[selected_idx]
-            self._tv_selector.set(target.name)
-            self._selected_tv_id = target.id
+            self._tv_selector.setCurrentIndex(selected_idx)
+            self._selected_tv_id = self._tvs[selected_idx].id
         elif self._tvs:
-            target = self._tvs[0]
-            self._tv_selector.set(target.name)
-            self._selected_tv_id = target.id
+            self._tv_selector.setCurrentIndex(0)
+            self._selected_tv_id = self._tvs[0].id
         else:
-            self._tv_selector.set("Nenhuma TV cadastrada")
             self._selected_tv_id = None
+        self._tv_selector.blockSignals(False)
 
     def refresh_app_shortcuts(self) -> None:
         """Rebuild app shortcut buttons from config in a 2-column grid."""
-        for child in self._shortcuts_frame.winfo_children():
-            child.destroy()
+        # Clear existing buttons
+        while self._shortcuts_layout.count():
+            layout_item = self._shortcuts_layout.takeAt(0)
+            if layout_item is not None:
+                widget = layout_item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
         shortcuts = self._config_store.get_app_shortcuts()
         if not shortcuts:
             return
 
-        self._shortcuts_frame.columnconfigure((0, 1), weight=1, uniform="shortcut")
-
         items = shortcuts[:6]
         count = len(items)
-        for idx, item in enumerate(items):
+        for idx, shortcut_entry in enumerate(items):
             row = idx // 2
             col = idx % 2
-            # If odd count and it's the last item, span across both columns
             span = 2 if (idx == count - 1 and count % 2 == 1) else 1
 
-            link_target = item.link
-            btn = ctk.CTkButton(
-                self._shortcuts_frame,
-                text=item.label,
-                height=28,
-                corner_radius=8,
-                fg_color=("#e4e4e7", "#27272a"),
-                hover_color=("#d4d4d8", "#3f3f46"),
-                text_color=("#18181b", "#f4f4f5"),
-                font=("Liberation Sans", 9, "bold"),
-                border_width=1,
-                border_color=("#d4d4d8", "#3f3f46"),
-                command=self._make_launch_handler(link_target),
-            )
-            btn.grid(row=row, column=col, columnspan=span, padx=2, pady=2, sticky="nsew")
+            btn = QtWidgets.QPushButton(shortcut_entry.label, self._shortcuts_widget)
+            btn.setObjectName("shortcutButton")
+            btn.setFixedHeight(28)
+            link_target = shortcut_entry.link
+            btn.clicked.connect(self._make_launch_handler(link_target))
+            self._shortcuts_layout.addWidget(btn, row, col, 1, span)
 
     def _make_launch_handler(self, link: str) -> Callable[[], None]:
         return lambda: self._session.launch_app(link)
@@ -481,27 +366,33 @@ class MainWindow:
         self._session.send_key(key)
 
     def _on_send_text(self) -> None:
-        text = self._text_var.get()
+        text = self._txt_input.text()
         if text:
             self._session.send_text(text)
-            self._text_var.set("")
+            self._txt_input.clear()
 
     def _on_power_pressed(self) -> None:
         self._runner.submit(self._session.power())
 
     def _toggle_always_on_top(self) -> None:
-        val = self._menu_always_top_var.get()
-        self._root.attributes("-topmost", val)
+        val = self._action_always_top.isChecked()
         self._config_store.set_always_on_top(val)
+        flags = self.windowFlags()
+        if val:
+            flags |= QtCore.Qt.WindowType.WindowStaysOnTopHint
+        else:
+            flags &= ~QtCore.Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(flags)
+        self.show()
 
     def _on_state_event(self, state: ConnectionState, profile: TvProfile | None) -> None:
         self._status_bar.update_state(state)
         self._update_controls_state(state)
 
         if state == ConnectionState.NEEDS_PAIRING:
-            self._pairing_banner.pack(fill="x", padx=12, pady=2, before=self._status_bar)
+            self._pairing_banner.setVisible(True)
         else:
-            self._pairing_banner.pack_forget()
+            self._pairing_banner.setVisible(False)
 
     def _on_volume_event(self, volume: VolumeState) -> None:
         self._status_bar.update_volume(volume)
@@ -510,13 +401,11 @@ class MainWindow:
         self._status_bar.update_current_app(app_id)
 
     def _on_error_event(self, message: str, _exc: Exception | None = None) -> None:
-        # Display modal alert on explicit failures
-        messagebox.showerror("Erro de Comunicação", message, parent=self._root)
+        QtWidgets.QMessageBox.critical(self, "Erro de Comunicação", message)
 
     def _update_controls_state(self, state: ConnectionState) -> None:
         """Enable or disable remote control widgets based on connection state."""
         connected = state in (ConnectionState.CONNECTED, ConnectionState.RECONNECTING)
-        btn_state = "normal" if connected else "disabled"
 
         self._dpad.set_enabled(connected)
         for btn in (
@@ -532,11 +421,28 @@ class MainWindow:
             self._btn_vol_up,
             self._btn_send_text,
         ):
-            btn.configure(state=btn_state)
+            btn.setEnabled(connected)
 
-        for child in self._shortcuts_frame.winfo_children():
-            if isinstance(child, ctk.CTkButton):
-                child.configure(state=btn_state)
+        for i in range(self._shortcuts_layout.count()):
+            layout_item = self._shortcuts_layout.itemAt(i)
+            if layout_item is not None:
+                widget = layout_item.widget()
+                if widget is not None:
+                    widget.setEnabled(connected)
 
-        # Power button remains clickable anytime so user can trigger WoL or reconnect
-        self._btn_power.configure(state="normal")
+        # Power button remains clickable anytime
+        self._btn_power.setEnabled(True)
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent | None) -> None:
+        if event is None:
+            return
+
+        def is_ctrl_enabled() -> bool:
+            return self._session.state in (
+                ConnectionState.CONNECTED,
+                ConnectionState.RECONNECTING,
+            )
+
+        handled = handle_key_event(event, self, self._send_key, is_ctrl_enabled)
+        if not handled:
+            super().keyPressEvent(event)

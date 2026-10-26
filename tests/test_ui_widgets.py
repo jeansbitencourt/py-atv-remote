@@ -1,12 +1,12 @@
-"""Tests for CustomTkinter UI widgets."""
+"""Tests for PyQt6 UI widgets."""
 
 from __future__ import annotations
 
-import contextlib
+import sys
 from collections.abc import Generator
 
-import customtkinter as ctk
 import pytest
+from PyQt6 import QtWidgets
 
 from py_atv_remote.domain.keys import RemoteKey
 from py_atv_remote.domain.models import ConnectionState, VolumeState
@@ -15,82 +15,56 @@ from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 from py_atv_remote.ui.widgets.status_bar import StatusBar
 
 
-@pytest.fixture
-def ctk_root() -> Generator[ctk.CTk]:
-    root = ctk.CTk()
-    root.withdraw()
-    yield root
-    with contextlib.suppress(Exception):
-        root.destroy()
+@pytest.fixture(scope="session")
+def qapp() -> Generator[QtWidgets.QApplication]:
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
+    yield app  # type: ignore[misc]
 
 
-def test_repeat_button_state_and_press(ctk_root: ctk.CTk) -> None:
-    actions: list[str] = []
-    btn = RepeatButton(ctk_root, text="Test", command=lambda: actions.append("clicked"))
-    btn.pack()
+def test_repeat_button(qapp: QtWidgets.QApplication) -> None:
+    clicks: list[str] = []
+    btn = RepeatButton("Test", command=lambda: clicks.append("clicked"))
 
-    # Initial state
-    assert btn.cget("state") == "normal"
-    assert btn["state"] == "normal"
+    assert btn.autoRepeat() is True
+    assert btn.autoRepeatDelay() == 400
+    assert btn.autoRepeatInterval() == 110
 
-    # Press should trigger action once
-    btn._on_press(None)  # type: ignore[arg-type]
-    assert len(actions) == 1
-
-    # Release cancels repeat
-    btn._on_release(None)  # type: ignore[arg-type]
-    assert btn._timer_id is None
-
-    # Disable button
-    btn.configure(state="disabled")
-    assert btn["state"] == "disabled"
-    btn._on_press(None)  # type: ignore[arg-type]
-    assert len(actions) == 1  # No new click because disabled
+    btn.click()
+    assert clicks == ["clicked"]
 
 
-def test_dpad_enabling(ctk_root: ctk.CTk) -> None:
-    dispatched_keys: list[RemoteKey] = []
-    dpad = DPad(ctk_root, on_key=lambda k: dispatched_keys.append(k))
-    dpad.pack()
+def test_dpad_dispatch_and_enabling(qapp: QtWidgets.QApplication) -> None:
+    keys: list[RemoteKey] = []
+    dpad = DPad(on_key=lambda k: keys.append(k))
 
-    # Initial state is normal
-    assert dpad.btn_up.cget("state") == "normal"
-    assert dpad.btn_center.cget("state") == "normal"
+    assert dpad.btn_up.isEnabled() is True
+    assert dpad.btn_center.isEnabled() is True
 
-    # Trigger action
-    dpad._on_key(RemoteKey.DPAD_CENTER)
-    assert dispatched_keys == [RemoteKey.DPAD_CENTER]
+    dpad.btn_center.click()
+    assert keys == [RemoteKey.DPAD_CENTER]
 
-    # Disable
     dpad.set_enabled(False)
-    assert dpad.btn_up.cget("state") == "disabled"
-    assert dpad.btn_center.cget("state") == "disabled"
+    assert dpad.btn_up.isEnabled() is False
+    assert dpad.btn_center.isEnabled() is False
 
-    # Re-enable
     dpad.set_enabled(True)
-    assert dpad.btn_up.cget("state") == "normal"
-    assert dpad.btn_center.cget("state") == "normal"
+    assert dpad.btn_up.isEnabled() is True
+    assert dpad.btn_center.isEnabled() is True
 
 
-def test_status_bar_updates(ctk_root: ctk.CTk) -> None:
-    bar = StatusBar(ctk_root)
-    bar.pack()
+def test_status_bar_updates(qapp: QtWidgets.QApplication) -> None:
+    bar = StatusBar()
 
-    # Initial status
-    assert "Nenhuma TV" in bar._text_var.get()
+    assert "Nenhuma TV" in bar._label.text()
 
-    # Connect
     bar.update_state(ConnectionState.CONNECTED)
-    assert "Conectado" in bar._text_var.get()
+    assert "Conectado" in bar._label.text()
 
-    # Volume update
-    bar.update_volume(VolumeState(level=15, max_level=25, muted=False))
-    assert "Vol 15/25" in bar._text_var.get()
+    bar.update_volume(VolumeState(level=18, max_level=100, muted=False))
+    assert "Vol 18/100" in bar._label.text()
 
-    # Mute update
-    bar.update_volume(VolumeState(level=15, max_level=25, muted=True))
-    assert "Mudo" in bar._text_var.get()
+    bar.update_volume(VolumeState(level=18, max_level=100, muted=True))
+    assert "Mudo" in bar._label.text()
 
-    # App update
     bar.update_current_app("com.google.android.youtube.tv")
-    assert "YouTube" in bar._text_var.get()
+    assert "YouTube" in bar._label.text()
