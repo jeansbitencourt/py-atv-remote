@@ -1,0 +1,65 @@
+[project]
+name = "py-atv-remote"
+version = "0.1.0"
+description = "Desktop remote control for Android TV / Google TV using Protocol V2 (mTLS)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Jean Bitencourt" }]
+dependencies = [
+    "androidtvremote2>=0.3.2,<0.4",
+    "zeroconf>=0.130.0",
+    "cryptography>=42.0.0",
+]
+
+[project.scripts]
+py-atv-remote = "py_atv_remote.app:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/py_atv_remote"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "UP",
+    "B",
+    "SIM",
+    "RUF",
+]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "androidtvremote2.*",
+    "zeroconf.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "gui: tests that require a graphical display",
+]
