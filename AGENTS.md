@@ -6,7 +6,7 @@ This document serves as the architectural reference and development playbook for
 
 ## 1. Project Overview
 
-`py-atv-remote` is a native desktop remote control application for Android TV and Google TV built with Python, Tkinter, and the Google Remote V2 protocol (mTLS on ports 6466/6467). It supports multiple TVs on the local network, persistent TLS sessions, automatic DHCP IP synchronization, Wake-on-LAN, and desktop environment integration.
+`py-atv-remote` is a native desktop remote control application for Android TV and Google TV built with Python, CustomTkinter, and the Google Remote V2 protocol (mTLS on ports 6466/6467). It supports multiple TVs on the local network, persistent TLS sessions, automatic DHCP IP synchronization, Wake-on-LAN, and desktop environment integration.
 
 ---
 
@@ -15,7 +15,7 @@ This document serves as the architectural reference and development playbook for
 The project strictly follows layered clean architecture. Dependencies only point inward:
 
 ```
-UI (Tkinter/ttk)
+UI (CustomTkinter / Tkinter)
     ↓
 Services (Orchestration & Application Logic)
     ↓

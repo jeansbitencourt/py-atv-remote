@@ -6,6 +6,8 @@ import tkinter as tk
 from collections.abc import Callable
 from tkinter import ttk
 
+import customtkinter as ctk
+
 from py_atv_remote.domain.keys import RemoteKey
 
 # Key symbols mapped to RemoteKey
@@ -45,7 +47,7 @@ def register_keybindings(
 
         # If user is focused on an Entry, Text or Combobox, do not intercept normal typing!
         focused = root.focus_get()
-        if isinstance(focused, (tk.Entry, ttk.Entry, tk.Text)):
+        if isinstance(focused, (tk.Entry, ttk.Entry, tk.Text, ctk.CTkEntry)):
             # Allow Escape in text input to unfocus
             if event.keysym == "Escape":
                 root.focus_set()

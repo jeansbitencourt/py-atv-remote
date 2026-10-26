@@ -6,8 +6,9 @@ import argparse
 import contextlib
 import logging
 import sys
-import tkinter as tk
-from tkinter import font, ttk
+from tkinter import ttk
+
+import customtkinter as ctk
 
 from py_atv_remote.infrastructure.cert_store import CertStore
 from py_atv_remote.infrastructure.config_store import ConfigStore
@@ -31,17 +32,21 @@ class App:
     def __init__(self, debug: bool = False) -> None:
         self._setup_logging(debug)
 
-        # 1. Infrastructure
+        # 1. CustomTkinter global theme configuration
+        ctk.set_appearance_mode("dark")
+        ctk.set_default_color_theme("blue")
+
+        # 2. Infrastructure
         self.paths = AppPaths()
         self.config_store = ConfigStore(self.paths)
         self.cert_store = CertStore(self.paths)
 
-        # 2. Tkinter Root Window
-        self.root = tk.Tk(className="py-atv-remote")
+        # 3. Root Window
+        self.root = ctk.CTk(className="py-atv-remote")
         self._setup_theme()
         self.dispatcher = TkDispatcher(self.root)
 
-        # 3. Services
+        # 4. Services
         self.event_bus = EventBus(self.dispatcher)
         self.runner = AsyncRunner()
         self.runner.start()
@@ -64,10 +69,10 @@ class App:
             cert_store=self.cert_store,
         )
 
-        # 4. Start background mDNS discovery
+        # 5. Start background mDNS discovery
         self.runner.submit(self.discovery.start())
 
-        # 5. UI Window
+        # 6. UI Window
         self.main_window = MainWindow(
             root=self.root,
             config_store=self.config_store,
@@ -85,14 +90,30 @@ class App:
         if "clam" in style.theme_names():
             style.theme_use("clam")
 
-        for font_name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
-            with contextlib.suppress(Exception):
-                f = font.nametofont(font_name)
-                f.configure(family="Liberation Sans", size=10)
-
-        style.configure("DPad.TButton", font=("Liberation Sans", 12, "bold"))
-        style.configure("Media.TButton", font=("Liberation Sans", 11, "bold"))
-        style.configure("Power.TButton", font=("Liberation Sans", 10, "bold"), foreground="#c0392b")
+        style.configure(
+            "Treeview",
+            background="#27272a",
+            foreground="#f4f4f5",
+            fieldbackground="#27272a",
+            borderwidth=0,
+            font=("Liberation Sans", 10),
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", "#2563eb")],
+            foreground=[("selected", "#ffffff")],
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#3f3f46",
+            foreground="#f4f4f5",
+            relief="flat",
+            font=("Liberation Sans", 10, "bold"),
+        )
+        style.map(
+            "Treeview.Heading",
+            background=[("active", "#52525b")],
+        )
 
     def open_device_manager(self) -> None:
         """Open the TV device management dialog."""

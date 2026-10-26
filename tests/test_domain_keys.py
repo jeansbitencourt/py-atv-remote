@@ -4,10 +4,10 @@ from py_atv_remote.domain.keys import RemoteKey
 
 
 def test_remote_keys_values() -> None:
-    assert RemoteKey.DPAD_CENTER == "KEYCODE_DPAD_CENTER"
-    assert RemoteKey.POWER == "KEYCODE_POWER"
-    assert RemoteKey.VOLUME_UP == "KEYCODE_VOLUME_UP"
-    assert RemoteKey.BACK == "KEYCODE_BACK"
+    assert RemoteKey.DPAD_CENTER.value == "KEYCODE_DPAD_CENTER"
+    assert RemoteKey.POWER.value == "KEYCODE_POWER"
+    assert RemoteKey.VOLUME_UP.value == "KEYCODE_VOLUME_UP"
+    assert RemoteKey.BACK.value == "KEYCODE_BACK"
 
 
 def test_remote_keys_repeatable() -> None:

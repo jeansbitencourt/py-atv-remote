@@ -118,10 +118,12 @@ async def test_session_connect_success_and_commands(tmp_path: Path) -> None:
 
     # Test is_available toggle -> RECONNECTING -> CONNECTED
     fake_client._is_available_cbs[0](False)
-    assert session.state == ConnectionState.RECONNECTING
+    state_after_drop: ConnectionState = session.state
+    assert state_after_drop == ConnectionState.RECONNECTING
 
     fake_client._is_available_cbs[0](True)
-    assert session.state == ConnectionState.CONNECTED
+    state_after_reconnect: ConnectionState = session.state
+    assert state_after_reconnect == ConnectionState.CONNECTED
 
 
 @pytest.mark.asyncio

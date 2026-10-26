@@ -1,21 +1,24 @@
-"""Dialog for configuring TV application shortcuts."""
+"""Dialog for configuring TV application shortcuts built with CustomTkinter."""
 
 from __future__ import annotations
 
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import messagebox, simpledialog, ttk
+from typing import Any
+
+import customtkinter as ctk
 
 from py_atv_remote.domain.models import AppShortcut
 from py_atv_remote.infrastructure.config_store import DEFAULT_APP_SHORTCUTS, ConfigStore
 
 
-class ShortcutsDialog(tk.Toplevel):
+class ShortcutsDialog(ctk.CTkToplevel):
     """Dialog allowing users to customize app launcher shortcuts."""
 
     def __init__(
         self,
-        parent: tk.Tk | tk.Toplevel,
+        parent: tk.Misc,
         config_store: ConfigStore,
         on_saved: Callable[[], None],
     ) -> None:
@@ -24,8 +27,9 @@ class ShortcutsDialog(tk.Toplevel):
         self._on_saved = on_saved
 
         self.title("Editar Atalhos de Apps")
-        self.transient(parent)
-        self.minsize(450, 300)
+        if isinstance(parent, (tk.Tk, tk.Toplevel)):
+            self.transient(parent)
+        self.minsize(480, 320)
 
         self._shortcuts: list[AppShortcut] = list(self._config_store.get_app_shortcuts())
 
@@ -33,52 +37,94 @@ class ShortcutsDialog(tk.Toplevel):
         self._refresh_tree()
 
     def _build_ui(self) -> None:
-        frame = ttk.Frame(self, padding=12)
-        frame.pack(fill=tk.BOTH, expand=True)
+        btn_common: dict[str, Any] = {
+            "fg_color": ("#d4d4d8", "#3f3f46"),
+            "hover_color": ("#a1a1aa", "#52525b"),
+            "text_color": ("#18181b", "#f4f4f5"),
+            "corner_radius": 8,
+            "height": 32,
+            "font": ("Liberation Sans", 11),
+        }
 
-        info = ttk.Label(
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        info = ctk.CTkLabel(
             frame,
             text="Atalhos rápidos para abrir aplicativos na TV:",
-            font=("sans-serif", 10, "bold"),
+            font=("Liberation Sans", 12, "bold"),
+            anchor="w",
         )
-        info.pack(anchor=tk.W, pady=(0, 6))
+        info.pack(fill="x", pady=(0, 8))
+
+        content_row = ctk.CTkFrame(frame, fg_color="transparent")
+        content_row.pack(fill="both", expand=True)
 
         columns = ("label", "link")
         self._tree = ttk.Treeview(
-            frame,
+            content_row,
             columns=columns,
             show="headings",
             selectmode="browse",
-            height=7,
+            height=8,
         )
         self._tree.heading("label", text="Nome do App")
         self._tree.heading("link", text="Link / ID do Pacote")
-        self._tree.column("label", width=120)
-        self._tree.column("link", width=240)
+        self._tree.column("label", width=130)
+        self._tree.column("link", width=230)
 
-        tree_scroll = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=self._tree.yview)
+        tree_scroll = ttk.Scrollbar(content_row, orient=tk.VERTICAL, command=self._tree.yview)
         self._tree.configure(yscrollcommand=tree_scroll.set)
 
-        self._tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        tree_scroll.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        self._tree.pack(side="left", fill="both", expand=True)
+        tree_scroll.pack(side="left", fill="y", padx=(0, 10))
 
-        btn_panel = ttk.Frame(frame)
-        btn_panel.pack(side=tk.RIGHT, fill=tk.Y)
+        btn_panel = ctk.CTkFrame(content_row, fg_color="transparent")
+        btn_panel.pack(side="right", fill="y")
 
-        self._btn_add = ttk.Button(btn_panel, text="Adicionar…", command=self._on_add)
-        self._btn_add.pack(fill=tk.X, pady=(0, 4))
+        self._btn_add = ctk.CTkButton(
+            btn_panel,
+            text="Adicionar…",
+            command=self._on_add,
+            **btn_common,
+        )
+        self._btn_add.pack(fill="x", pady=(0, 6))
 
-        self._btn_edit = ttk.Button(btn_panel, text="Editar…", command=self._on_edit)
-        self._btn_edit.pack(fill=tk.X, pady=(0, 4))
+        self._btn_edit = ctk.CTkButton(
+            btn_panel,
+            text="Editar…",
+            command=self._on_edit,
+            **btn_common,
+        )
+        self._btn_edit.pack(fill="x", pady=(0, 6))
 
-        self._btn_remove = ttk.Button(btn_panel, text="Remover", command=self._on_remove)
-        self._btn_remove.pack(fill=tk.X, pady=(0, 14))
+        self._btn_remove = ctk.CTkButton(
+            btn_panel,
+            text="Remover",
+            command=self._on_remove,
+            **btn_common,
+        )
+        self._btn_remove.pack(fill="x", pady=(0, 12))
 
-        self._btn_reset = ttk.Button(btn_panel, text="Padrões", command=self._on_reset)
-        self._btn_reset.pack(fill=tk.X, pady=(0, 4))
+        self._btn_reset = ctk.CTkButton(
+            btn_panel,
+            text="Padrões",
+            command=self._on_reset,
+            **btn_common,
+        )
+        self._btn_reset.pack(fill="x", pady=(0, 6))
 
-        self._btn_save = ttk.Button(btn_panel, text="Salvar", command=self._on_save)
-        self._btn_save.pack(fill=tk.X, side=tk.BOTTOM)
+        self._btn_save = ctk.CTkButton(
+            btn_panel,
+            text="Salvar",
+            fg_color="#2563eb",
+            hover_color="#1d4ed8",
+            corner_radius=8,
+            height=32,
+            font=("Liberation Sans", 11, "bold"),
+            command=self._on_save,
+        )
+        self._btn_save.pack(fill="x", side="bottom")
 
     def _refresh_tree(self) -> None:
         self._tree.delete(*self._tree.get_children())

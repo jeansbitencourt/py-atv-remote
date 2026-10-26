@@ -3,18 +3,20 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk
+from typing import Any
+
+import customtkinter as ctk
 
 from py_atv_remote.domain.models import ConnectionState, VolumeState
 
 # Colors for connection dot
 STATE_COLORS: dict[ConnectionState, str] = {
-    ConnectionState.CONNECTED: "#2ecc71",  # Green
-    ConnectionState.CONNECTING: "#f1c40f",  # Yellow
-    ConnectionState.RECONNECTING: "#f39c12",  # Orange
-    ConnectionState.OFFLINE: "#e74c3c",  # Red
-    ConnectionState.NEEDS_PAIRING: "#3498db",  # Blue
-    ConnectionState.IDLE: "#95a5a6",  # Grey
+    ConnectionState.CONNECTED: "#22c55e",  # Green
+    ConnectionState.CONNECTING: "#eab308",  # Yellow
+    ConnectionState.RECONNECTING: "#f97316",  # Orange
+    ConnectionState.OFFLINE: "#ef4444",  # Red
+    ConnectionState.NEEDS_PAIRING: "#3b82f6",  # Blue
+    ConnectionState.IDLE: "#71717a",  # Muted Zinc
 }
 
 STATE_LABELS: dict[ConnectionState, str] = {
@@ -27,20 +29,34 @@ STATE_LABELS: dict[ConnectionState, str] = {
 }
 
 
-class StatusBar(ttk.Frame):
-    """Displays connection dot, status text, current app, and volume level."""
+class StatusBar(ctk.CTkFrame):
+    """Displays connection status indicator, app name, and volume level."""
 
-    def __init__(self, master: tk.Misc) -> None:
-        super().__init__(master)
+    def __init__(self, master: tk.Misc, **kwargs: Any) -> None:
+        kwargs.setdefault("corner_radius", 10)
+        kwargs.setdefault("fg_color", ("#e4e4e7", "#27272a"))
+        kwargs.setdefault("height", 32)
+        super().__init__(master, **kwargs)
 
-        self._canvas = tk.Canvas(self, width=12, height=12, highlightthickness=0)
-        self._canvas.pack(side=tk.LEFT, padx=(4, 6), pady=2)
         initial_color = STATE_COLORS[ConnectionState.IDLE]
-        self._dot = self._canvas.create_oval(2, 2, 10, 10, fill=initial_color, outline="")
+        self._dot = ctk.CTkLabel(
+            self,
+            text="●",
+            font=("Liberation Sans", 13),
+            text_color=initial_color,
+            width=18,
+        )
+        self._dot.pack(side="left", padx=(8, 2), pady=3)
 
         self._text_var = tk.StringVar(value=STATE_LABELS[ConnectionState.IDLE])
-        self._label = ttk.Label(self, textvariable=self._text_var, font=("sans-serif", 9))
-        self._label.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._label = ctk.CTkLabel(
+            self,
+            textvariable=self._text_var,
+            font=("Liberation Sans", 11),
+            text_color=("#18181b", "#d4d4d8"),
+            anchor="w",
+        )
+        self._label.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=3)
 
         self._state = ConnectionState.IDLE
         self._current_app: str | None = None
@@ -49,8 +65,8 @@ class StatusBar(ttk.Frame):
     def update_state(self, state: ConnectionState) -> None:
         """Update connection state and refresh display."""
         self._state = state
-        color = STATE_COLORS.get(state, "#95a5a6")
-        self._canvas.itemconfig(self._dot, fill=color)
+        color = STATE_COLORS.get(state, "#71717a")
+        self._dot.configure(text_color=color)
         self._refresh_text()
 
     def update_current_app(self, app_id: str | None) -> None:
@@ -68,7 +84,6 @@ class StatusBar(ttk.Frame):
 
         if self._state == ConnectionState.CONNECTED:
             if self._current_app:
-                # Format friendly app name if common or shorten package
                 app_name = self._format_app_name(self._current_app)
                 parts.append(app_name)
 

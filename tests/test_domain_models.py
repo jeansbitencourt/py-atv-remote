@@ -58,4 +58,4 @@ def test_volume_and_app_models() -> None:
     shortcut = AppShortcut(label="YouTube", link="https://www.youtube.com")
     assert shortcut.label == "YouTube"
 
-    assert ConnectionState.CONNECTED == "connected"
+    assert ConnectionState.CONNECTED.value == "connected"

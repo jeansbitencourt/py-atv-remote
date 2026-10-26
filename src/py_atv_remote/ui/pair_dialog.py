@@ -1,11 +1,12 @@
-"""Modal dialog for entering TV pairing PIN."""
+"""Modal dialog for entering TV pairing PIN built with CustomTkinter."""
 
 from __future__ import annotations
 
 import logging
 import tkinter as tk
 from collections.abc import Callable
-from tkinter import ttk
+
+import customtkinter as ctk
 
 from py_atv_remote.domain.errors import InvalidPinError, PairingFailedError
 from py_atv_remote.domain.models import TvProfile
@@ -15,12 +16,12 @@ from py_atv_remote.services.pairing_service import PairingService, PairingSessio
 LOGGER = logging.getLogger(__name__)
 
 
-class PairDialog(tk.Toplevel):
+class PairDialog(ctk.CTkToplevel):
     """Modal dialog prompting the user to type the PIN displayed on the TV."""
 
     def __init__(
         self,
-        parent: tk.Tk | tk.Toplevel,
+        parent: tk.Misc,
         pairing_service: PairingService,
         pairing_session: PairingSession,
         async_runner: AsyncRunner,
@@ -33,7 +34,8 @@ class PairDialog(tk.Toplevel):
         self._on_success = on_success
 
         self.title("Pareamento de TV")
-        self.transient(parent)
+        if isinstance(parent, (tk.Tk, tk.Toplevel)):
+            self.transient(parent)
         self.grab_set()
         self.resizable(False, False)
 
@@ -41,30 +43,34 @@ class PairDialog(tk.Toplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
     def _build_ui(self) -> None:
-        frame = ttk.Frame(self, padding=20)
-        frame.pack(fill=tk.BOTH, expand=True)
+        frame = ctk.CTkFrame(self, corner_radius=12, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=24, pady=20)
 
-        header = ttk.Label(
+        header = ctk.CTkLabel(
             frame,
             text=f"Pareando com {self._session.target_name}",
-            font=("sans-serif", 12, "bold"),
+            font=("Liberation Sans", 14, "bold"),
         )
         header.pack(pady=(0, 6))
 
-        info = ttk.Label(
+        info = ctk.CTkLabel(
             frame,
             text=f"IP: {self._session.host}\nDigite o código de pareamento exibido na tela da TV:",
-            justify=tk.CENTER,
+            justify="center",
+            font=("Liberation Sans", 11),
+            text_color=("#52525b", "#a1a1aa"),
         )
-        info.pack(pady=(0, 12))
+        info.pack(pady=(0, 14))
 
         self._pin_var = tk.StringVar()
-        self._pin_entry = ttk.Entry(
+        self._pin_entry = ctk.CTkEntry(
             frame,
             textvariable=self._pin_var,
-            font=("monospace", 18, "bold"),
-            justify=tk.CENTER,
-            width=10,
+            font=("monospace", 22, "bold"),
+            justify="center",
+            width=180,
+            height=46,
+            corner_radius=10,
         )
         self._pin_entry.pack(pady=(0, 10))
         self._pin_entry.focus_set()
@@ -72,22 +78,40 @@ class PairDialog(tk.Toplevel):
         self._pin_entry.bind("<Escape>", lambda _e: self._on_cancel())
 
         self._status_var = tk.StringVar(value="")
-        self._status_lbl = ttk.Label(
+        self._status_lbl = ctk.CTkLabel(
             frame,
             textvariable=self._status_var,
-            foreground="#c0392b",
-            font=("sans-serif", 9),
+            text_color="#ef4444",
+            font=("Liberation Sans", 10),
         )
         self._status_lbl.pack(pady=(0, 12))
 
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(fill=tk.X)
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(fill="x")
 
-        self._btn_cancel = ttk.Button(btn_frame, text="Cancelar", command=self._on_cancel)
-        self._btn_cancel.pack(side=tk.LEFT, expand=True, padx=4)
+        self._btn_cancel = ctk.CTkButton(
+            btn_frame,
+            text="Cancelar",
+            fg_color=("#d4d4d8", "#3f3f46"),
+            hover_color=("#a1a1aa", "#52525b"),
+            text_color=("#18181b", "#f4f4f5"),
+            corner_radius=8,
+            height=34,
+            command=self._on_cancel,
+        )
+        self._btn_cancel.pack(side="left", expand=True, fill="x", padx=(0, 6))
 
-        self._btn_submit = ttk.Button(btn_frame, text="Confirmar PIN", command=self._on_submit)
-        self._btn_submit.pack(side=tk.RIGHT, expand=True, padx=4)
+        self._btn_submit = ctk.CTkButton(
+            btn_frame,
+            text="Confirmar PIN",
+            fg_color="#2563eb",
+            hover_color="#1d4ed8",
+            corner_radius=8,
+            height=34,
+            font=("Liberation Sans", 11, "bold"),
+            command=self._on_submit,
+        )
+        self._btn_submit.pack(side="right", expand=True, fill="x", padx=(6, 0))
 
     def _on_submit(self) -> None:
         pin = self._pin_var.get().strip().upper()
@@ -125,10 +149,10 @@ class PairDialog(tk.Toplevel):
         self._pin_entry.focus_set()
 
     def _set_loading(self, loading: bool) -> None:
-        state = tk.DISABLED if loading else tk.NORMAL
-        self._btn_submit["state"] = state
-        self._btn_cancel["state"] = state
-        self._pin_entry["state"] = state
+        state = "disabled" if loading else "normal"
+        self._btn_submit.configure(state=state)
+        self._btn_cancel.configure(state=state)
+        self._pin_entry.configure(state=state)
 
     def _on_cancel(self) -> None:
         self._pairing_service.cancel_pairing(self._session)

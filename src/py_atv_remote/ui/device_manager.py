@@ -6,6 +6,9 @@ import logging
 import tkinter as tk
 from collections.abc import Callable
 from tkinter import messagebox, simpledialog, ttk
+from typing import Any
+
+import customtkinter as ctk
 
 from py_atv_remote.domain.errors import TvUnreachableError
 from py_atv_remote.domain.models import DiscoveredTv, TvProfile
@@ -21,12 +24,12 @@ from py_atv_remote.ui.pair_dialog import PairDialog
 LOGGER = logging.getLogger(__name__)
 
 
-class DeviceManager(tk.Toplevel):
+class DeviceManager(ctk.CTkToplevel):
     """Dialog allowing users to view discovered TVs, pair new devices, and manage saved profiles."""
 
     def __init__(
         self,
-        parent: tk.Tk | tk.Toplevel,
+        parent: tk.Misc,
         config_store: ConfigStore,
         cert_store: CertStore,
         discovery_service: DiscoveryService,
@@ -47,8 +50,9 @@ class DeviceManager(tk.Toplevel):
         self._on_tv_selected = on_tv_selected
 
         self.title("Gerenciador de Android TVs")
-        self.transient(parent)
-        self.minsize(620, 380)
+        if isinstance(parent, (tk.Tk, tk.Toplevel)):
+            self.transient(parent)
+        self.minsize(640, 390)
 
         # Cache of rows: item_key -> DiscoveredTv | TvProfile
         self._items: dict[str, DiscoveredTv | TvProfile] = {}
@@ -58,20 +62,33 @@ class DeviceManager(tk.Toplevel):
         self._refresh_list()
 
     def _build_ui(self) -> None:
-        main_frame = ttk.Frame(self, padding=12)
-        main_frame.pack(fill=tk.BOTH, expand=True)
+        btn_common: dict[str, Any] = {
+            "fg_color": ("#d4d4d8", "#3f3f46"),
+            "hover_color": ("#a1a1aa", "#52525b"),
+            "text_color": ("#18181b", "#f4f4f5"),
+            "corner_radius": 8,
+            "height": 32,
+            "font": ("Liberation Sans", 11),
+        }
 
-        header_lbl = ttk.Label(
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=16, pady=16)
+
+        header_lbl = ctk.CTkLabel(
             main_frame,
             text="TVs Encontradas na Rede e Cadastradas",
-            font=("sans-serif", 11, "bold"),
+            font=("Liberation Sans", 13, "bold"),
+            anchor="w",
         )
-        header_lbl.pack(anchor=tk.W, pady=(0, 8))
+        header_lbl.pack(fill="x", pady=(0, 10))
+
+        content_row = ctk.CTkFrame(main_frame, fg_color="transparent")
+        content_row.pack(fill="both", expand=True)
 
         # Treeview table
         columns = ("name", "host", "status", "id")
         self._tree = ttk.Treeview(
-            main_frame,
+            content_row,
             columns=columns,
             show="headings",
             selectmode="browse",
@@ -87,49 +104,86 @@ class DeviceManager(tk.Toplevel):
         self._tree.column("status", width=150)
         self._tree.column("id", width=120)
 
-        tree_scroll = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=self._tree.yview)
+        tree_scroll = ttk.Scrollbar(content_row, orient=tk.VERTICAL, command=self._tree.yview)
         self._tree.configure(yscrollcommand=tree_scroll.set)
 
-        self._tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        tree_scroll.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
+        self._tree.pack(side="left", fill="both", expand=True)
+        tree_scroll.pack(side="left", fill="y", padx=(0, 10))
 
         # Right Action Buttons Panel
-        btn_panel = ttk.Frame(main_frame)
-        btn_panel.pack(side=tk.RIGHT, fill=tk.Y)
+        btn_panel = ctk.CTkFrame(content_row, fg_color="transparent")
+        btn_panel.pack(side="right", fill="y")
 
-        self._btn_use = ttk.Button(btn_panel, text="Usar esta TV", command=self._on_use_clicked)
-        self._btn_use.pack(fill=tk.X, pady=(0, 6))
+        self._btn_use = ctk.CTkButton(
+            btn_panel,
+            text="Usar esta TV",
+            fg_color="#2563eb",
+            hover_color="#1d4ed8",
+            corner_radius=8,
+            height=32,
+            font=("Liberation Sans", 11, "bold"),
+            command=self._on_use_clicked,
+        )
+        self._btn_use.pack(fill="x", pady=(0, 6))
 
-        self._btn_pair = ttk.Button(btn_panel, text="Parear TV…", command=self._on_pair_clicked)
-        self._btn_pair.pack(fill=tk.X, pady=(0, 6))
+        self._btn_pair = ctk.CTkButton(
+            btn_panel,
+            text="Parear TV…",
+            fg_color="#3b82f6",
+            hover_color="#2563eb",
+            corner_radius=8,
+            height=32,
+            font=("Liberation Sans", 11),
+            command=self._on_pair_clicked,
+        )
+        self._btn_pair.pack(fill="x", pady=(0, 6))
 
-        self._btn_rename = ttk.Button(btn_panel, text="Renomear…", command=self._on_rename_clicked)
-        self._btn_rename.pack(fill=tk.X, pady=(0, 6))
+        self._btn_rename = ctk.CTkButton(
+            btn_panel,
+            text="Renomear…",
+            command=self._on_rename_clicked,
+            **btn_common,
+        )
+        self._btn_rename.pack(fill="x", pady=(0, 6))
 
-        self._btn_forget = ttk.Button(
+        self._btn_forget = ctk.CTkButton(
             btn_panel,
             text="Esquecer TV",
+            fg_color="#dc2626",
+            hover_color="#b91c1c",
+            text_color="#ffffff",
+            corner_radius=8,
+            height=32,
+            font=("Liberation Sans", 11),
             command=self._on_forget_clicked,
         )
-        self._btn_forget.pack(fill=tk.X, pady=(0, 14))
+        self._btn_forget.pack(fill="x", pady=(0, 14))
 
-        self._btn_add_ip = ttk.Button(
+        self._btn_add_ip = ctk.CTkButton(
             btn_panel,
             text="Adicionar por IP…",
             command=self._on_add_ip_clicked,
+            **btn_common,
         )
-        self._btn_add_ip.pack(fill=tk.X, pady=(0, 6))
+        self._btn_add_ip.pack(fill="x", pady=(0, 6))
 
-        self._btn_scan = ttk.Button(
+        self._btn_scan = ctk.CTkButton(
             btn_panel,
             text="Varredura Completa",
             command=self._on_scan_clicked,
+            **btn_common,
         )
-        self._btn_scan.pack(fill=tk.X, pady=(0, 6))
+        self._btn_scan.pack(fill="x", pady=(0, 6))
 
         self._status_var = tk.StringVar(value="Varredura mDNS ativa em segundo plano.")
-        status_lbl = ttk.Label(self, textvariable=self._status_var, padding=(12, 4))
-        status_lbl.pack(side=tk.BOTTOM, fill=tk.X)
+        status_lbl = ctk.CTkLabel(
+            self,
+            textvariable=self._status_var,
+            font=("Liberation Sans", 10),
+            text_color=("#71717a", "#a1a1aa"),
+            anchor="w",
+        )
+        status_lbl.pack(side="bottom", fill="x", padx=16, pady=(0, 8))
 
         self._tree.bind("<Double-1>", lambda _e: self._on_double_click())
 
@@ -344,7 +398,7 @@ class DeviceManager(tk.Toplevel):
 
     def _on_scan_clicked(self) -> None:
         self._status_var.set("Executando varredura TCP na sub-rede…")
-        self._btn_scan["state"] = tk.DISABLED
+        self._btn_scan.configure(state="disabled")
 
         async def _do_scan() -> None:
             try:
@@ -356,5 +410,5 @@ class DeviceManager(tk.Toplevel):
         self._runner.submit(_do_scan())
 
     def _on_scan_finished(self) -> None:
-        self._btn_scan["state"] = tk.NORMAL
+        self._btn_scan.configure(state="normal")
         self._status_var.set("Varredura concluída.")

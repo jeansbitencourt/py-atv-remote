@@ -1,15 +1,17 @@
-"""Button widget supporting repeated firing while held down."""
+"""Button widget supporting repeated firing while held down, built with CustomTkinter."""
 
 from __future__ import annotations
 
 import contextlib
 import tkinter as tk
 from collections.abc import Callable
-from tkinter import ttk
+from typing import Any
+
+import customtkinter as ctk
 
 
-class RepeatButton(ttk.Button):
-    """ttk.Button subclass that fires repeatedly while pressed down."""
+class RepeatButton(ctk.CTkButton):
+    """customtkinter.CTkButton subclass that fires repeatedly while held down."""
 
     def __init__(
         self,
@@ -18,9 +20,11 @@ class RepeatButton(ttk.Button):
         command: Callable[[], None] | None = None,
         initial_delay_ms: int = 400,
         repeat_interval_ms: int = 110,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(master, text=text, command=None, **kwargs)  # type: ignore[arg-type]
+        kwargs.setdefault("corner_radius", 8)
+        kwargs.setdefault("font", ("Liberation Sans", 11, "bold"))
+        super().__init__(master, text=text, command=None, **kwargs)
         self._action = command
         self._initial_delay_ms = initial_delay_ms
         self._repeat_interval_ms = repeat_interval_ms
@@ -32,7 +36,7 @@ class RepeatButton(ttk.Button):
 
     def _on_press(self, _event: tk.Event[tk.Misc]) -> None:
         self._cancel_timer()
-        if self["state"] == tk.DISABLED:
+        if self.cget("state") == "disabled":
             return
 
         if self._action:
@@ -41,7 +45,7 @@ class RepeatButton(ttk.Button):
         self._timer_id = self.after(self._initial_delay_ms, self._on_repeat)
 
     def _on_repeat(self) -> None:
-        if self["state"] == tk.DISABLED:
+        if self.cget("state") == "disabled":
             self._cancel_timer()
             return
 
@@ -58,3 +62,14 @@ class RepeatButton(ttk.Button):
             with contextlib.suppress(Exception):
                 self.after_cancel(self._timer_id)
             self._timer_id = None
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        if key == "state":
+            self.configure(state=value)
+        else:
+            super().__setitem__(key, value)
+
+    def __getitem__(self, key: str) -> Any:
+        if key == "state":
+            return self.cget("state")
+        return super().__getitem__(key)
