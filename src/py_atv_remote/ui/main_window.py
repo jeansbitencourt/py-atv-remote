@@ -41,12 +41,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._runner = async_runner
         self._open_device_manager = open_device_manager
         self._open_shortcuts_dialog = open_shortcuts_dialog
+        self._application = QtWidgets.QApplication.instance()
+        if self._application is None:
+            raise RuntimeError("MainWindow requires a QApplication instance.")
 
         self._tvs: list[TvProfile] = []
         self._selected_tv_id: str | None = None
 
         self._setup_window()
         self._build_ui()
+        self._application.installEventFilter(self)
         self._setup_event_subscriptions()
         self._load_saved_tvs()
 
@@ -434,16 +438,32 @@ class MainWindow(QtWidgets.QMainWindow):
         # Power button remains clickable anytime
         self._btn_power.setEnabled(True)
 
-    def keyPressEvent(self, event: QtGui.QKeyEvent | None) -> None:
-        if event is None:
-            return
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        """Route shortcuts before focused child widgets consume their key events."""
+        if event.type() != QtCore.QEvent.Type.KeyPress or not isinstance(event, QtGui.QKeyEvent):
+            return super().eventFilter(watched, event)
+        if not isinstance(watched, QtWidgets.QWidget) or watched.window() is not self:
+            return super().eventFilter(watched, event)
+        if QtWidgets.QApplication.activePopupWidget() is not None:
+            return super().eventFilter(watched, event)
 
-        def is_ctrl_enabled() -> bool:
+        def is_remote_enabled() -> bool:
             return self._session.state in (
                 ConnectionState.CONNECTED,
                 ConnectionState.RECONNECTING,
             )
 
-        handled = handle_key_event(event, self, self._send_key, is_ctrl_enabled)
-        if not handled:
-            super().keyPressEvent(event)
+        handled = handle_key_event(
+            event,
+            self,
+            self._send_key,
+            is_remote_enabled,
+            on_power=self._on_power_pressed,
+        )
+        if handled:
+            event.accept()
+        return handled or super().eventFilter(watched, event)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        self._application.removeEventFilter(self)
+        super().closeEvent(event)
