@@ -17,7 +17,7 @@ Projetado especificamente para residências com **múltiplas televisões na mesm
 - **Fallback de Varredura TCP e IP Manual**: Caso o roteador bloqueie tráfego multicast/mDNS, a ferramenta oferece varredura direta de sub-rede na porta 6466 e inserção manual de IP.
 - **Wake-on-LAN (WoL)**: Aprende dinamicamente o MAC de rede da TV via tabela ARP do Linux e envia magic packets para ligar TVs em standby profundo.
 - **Repetição ao Segurar**: Pressione e segure setas do D-Pad ou botões de Volume para repetição rápida e suave.
-- **Atalhos do Teclado Físico**: Navegue com as setas, dê `Enter` para OK, `Esc` para voltar, `Espaço` para Play/Pause, `+`/`-` para volume e `M` para mudo.
+- **Atalhos do Teclado Físico**: Controle a TV com setas, teclas de mídia, volume e atalhos de sistema. Consulte a lista completa no menu de opções do aplicativo.
 - **Envio de Texto Direto**: Digite buscas, URLs e senhas no computador e envie diretamente para o campo de texto ativo na TV.
 - **Atalhos Customizáveis para Apps**: Abra YouTube, Netflix, Prime Video, Disney+, Globoplay ou adicione seus próprios aplicativos.
 - **Janela Sempre no Topo (Always on Top)**: Fixe o controle sobre outras janelas enquanto assiste ou trabalha.
@@ -101,12 +101,17 @@ python3 main.py
 | `Enter` / `KP_Enter` | Selecionar / OK |
 | `Escape` / `Backspace` | Voltar (`BACK`) |
 | `Home` / `H` | Tela Inicial (`HOME`) |
+| `I` | Alternar Entradas (`TV_INPUT`) |
+| `P` | Ligar / desligar (ou tentar Wake-on-LAN quando offline) |
 | `Espaço` | Reproduzir / Pausar (`MEDIA_PLAY_PAUSE`) |
+| `J` / `L` | Rebobinar / avançar |
 | `+` / `KP_Add` / `=` | Aumentar Volume (`VOLUME_UP`) |
 | `-` / `KP_Subtract` | Diminuir Volume (`VOLUME_DOWN`) |
 | `M` | Alternar Mudo (`MUTE`) |
 
-*(Os atalhos de navegação e mídia são pausados automaticamente quando você clica e digita no campo de envio de texto).*
+Os atalhos funcionam quando a janela principal está ativa, mesmo que um botão esteja com foco. No campo de texto, as teclas continuam editando o texto; `Enter` envia o texto e `Escape` tira o foco do campo. Menus, seletores abertos e diálogos mantêm o comportamento normal.
+
+Também é possível consultar essa lista no menu de opções, em **Consultar Atalhos do Teclado…**.
 
 ---
 

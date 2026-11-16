@@ -14,6 +14,7 @@ from py_atv_remote.services.async_runner import AsyncRunner
 from py_atv_remote.services.events import EventBus
 from py_atv_remote.services.remote_session import RemoteSessionService
 from py_atv_remote.ui.keybindings import handle_key_event
+from py_atv_remote.ui.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
 from py_atv_remote.ui.widgets.dpad import DPad
 from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 from py_atv_remote.ui.widgets.status_bar import StatusBar
@@ -107,6 +108,10 @@ class MainWindow(QtWidgets.QMainWindow):
         action_shortcuts = QtGui.QAction("Editar Atalhos de Apps…", self)
         action_shortcuts.triggered.connect(self._open_shortcuts_dialog)
         self._options_menu.addAction(action_shortcuts)
+
+        action_keyboard_shortcuts = QtGui.QAction("Consultar Atalhos do Teclado…", self)
+        action_keyboard_shortcuts.triggered.connect(self._show_keyboard_shortcuts)
+        self._options_menu.addAction(action_keyboard_shortcuts)
 
         self._btn_menu.setMenu(self._options_menu)
         header_layout.addWidget(self._btn_menu)
@@ -353,6 +358,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _make_launch_handler(self, link: str) -> Callable[[], None]:
         return lambda: self._session.launch_app(link)
+
+    def _show_keyboard_shortcuts(self) -> None:
+        dialog = KeyboardShortcutsDialog(self)
+        dialog.exec()
 
     def _on_tv_option_selected(self, chosen_name: str) -> None:
         for tv in self._tvs:
