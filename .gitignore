@@ -36,3 +36,6 @@ config.json
 
 # Specifications and prompt documents (as requested)
 *.pdf
+
+# Generated, verified optional preview toolchain
+src/py_atv_remote/vendor/
