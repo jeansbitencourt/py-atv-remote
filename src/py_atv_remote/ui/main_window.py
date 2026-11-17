@@ -447,8 +447,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # Power button remains clickable anytime
         self._btn_power.setEnabled(True)
 
-    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+    def eventFilter(self, watched: QtCore.QObject | None, event: QtCore.QEvent | None) -> bool:
         """Route shortcuts before focused child widgets consume their key events."""
+        if event is None:
+            return False
         if event.type() != QtCore.QEvent.Type.KeyPress or not isinstance(event, QtGui.QKeyEvent):
             return super().eventFilter(watched, event)
         if not isinstance(watched, QtWidgets.QWidget) or watched.window() is not self:
@@ -473,6 +475,7 @@ class MainWindow(QtWidgets.QMainWindow):
             event.accept()
         return handled or super().eventFilter(watched, event)
 
-    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        self._application.removeEventFilter(self)
+    def closeEvent(self, event: QtGui.QCloseEvent | None) -> None:
+        if self._application is not None:
+            self._application.removeEventFilter(self)
         super().closeEvent(event)

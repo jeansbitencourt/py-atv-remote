@@ -92,9 +92,7 @@ def test_keybinding_modifiers_and_repeat_behavior() -> None:
         QtCore.Qt.Key.Key_H.value,
         QtCore.Qt.KeyboardModifier.ControlModifier,
     )
-    assert handle_key_event(
-        ctrl_h, window, sent_keys.append, is_enabled=lambda: True
-    ) is False
+    assert handle_key_event(ctrl_h, window, sent_keys.append, is_enabled=lambda: True) is False
     assert sent_keys == []
 
     repeated_play = QtGui.QKeyEvent(
@@ -105,9 +103,9 @@ def test_keybinding_modifiers_and_repeat_behavior() -> None:
         True,
         1,
     )
-    assert handle_key_event(
-        repeated_play, window, sent_keys.append, is_enabled=lambda: True
-    ) is True
+    assert (
+        handle_key_event(repeated_play, window, sent_keys.append, is_enabled=lambda: True) is True
+    )
     assert sent_keys == []
 
     repeated_volume = QtGui.QKeyEvent(
@@ -118,9 +116,9 @@ def test_keybinding_modifiers_and_repeat_behavior() -> None:
         True,
         1,
     )
-    assert handle_key_event(
-        repeated_volume, window, sent_keys.append, is_enabled=lambda: True
-    ) is True
+    assert (
+        handle_key_event(repeated_volume, window, sent_keys.append, is_enabled=lambda: True) is True
+    )
     assert sent_keys == [RemoteKey.VOLUME_UP]
 
 

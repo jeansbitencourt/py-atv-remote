@@ -30,7 +30,7 @@ def qapp() -> QtWidgets.QApplication:
 @pytest.fixture
 def main_window(
     tmp_path: Path, qapp: QtWidgets.QApplication
-) -> Generator[tuple[MainWindow, MagicMock, list[RemoteKey]], None, None]:
+) -> Generator[tuple[MainWindow, MagicMock, list[RemoteKey]]]:
     config_store = ConfigStore(AppPaths(base_dir=tmp_path))
     session = MagicMock()
     session.state = ConnectionState.CONNECTED
