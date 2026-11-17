@@ -12,7 +12,7 @@ from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtTest import QTest
 
 from py_atv_remote.domain.keys import RemoteKey
-from py_atv_remote.domain.models import ConnectionState
+from py_atv_remote.domain.models import ConnectionState, TvProfile
 from py_atv_remote.infrastructure.config_store import ConfigStore
 from py_atv_remote.infrastructure.paths import AppPaths
 from py_atv_remote.services.events import EventBus
@@ -98,3 +98,17 @@ def test_text_input_keeps_native_keys_and_power_works_offline(
 
     session.power.assert_called_once_with()
     assert sent_keys == []
+
+
+def test_state_events_from_previous_tv_do_not_override_selection(
+    main_window: tuple[MainWindow, MagicMock, list[RemoteKey]],
+) -> None:
+    window, _session, _keys = main_window
+    window._selected_tv_id = "online"
+    current = TvProfile("online", "Online", "192.168.1.2")
+    previous = TvProfile("offline", "Offline", "192.168.1.3")
+    window._on_state_event(ConnectionState.CONNECTED, current)
+    window._on_state_event(ConnectionState.CONNECTING, previous)
+    window._on_state_event(ConnectionState.OFFLINE, previous)
+    assert window._status_bar._state == ConnectionState.CONNECTED
+    assert window._btn_send_text.isEnabled()

@@ -1,5 +1,6 @@
 """Tests for RemoteSessionService."""
 
+import asyncio
 from collections.abc import Callable
 from pathlib import Path
 
@@ -168,3 +169,132 @@ async def test_session_offline_on_unreachable(tmp_path: Path) -> None:
 
     await session.select_tv("tv_off")
     assert session.state == ConnectionState.OFFLINE
+
+
+class PendingRemoteClient(FakeRemoteClient):
+    """Simulate an offline TV whose handshake never completes."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = asyncio.Event()
+        self.cancelled = asyncio.Event()
+
+    async def connect(self) -> None:
+        self.started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            self.cancelled.set()
+
+
+def session_with_clients(
+    tmp_path: Path, clients: dict[str, FakeRemoteClient], **options: float
+) -> tuple[RemoteSessionService, ConfigStore, EventBus]:
+    paths = AppPaths(base_dir=tmp_path)
+    store = ConfigStore(paths)
+    certs = CertStore(paths)
+    for tv_id in clients:
+        store.save_tv(TvProfile(tv_id, tv_id, f"{tv_id}.local", wol_mac="00:11:22:33:44:55"))
+        certs.get_cert_path(tv_id).write_text("CERT")
+        certs.get_key_path(tv_id).write_text("KEY")
+    bus = EventBus(DirectDispatcher())
+    return (
+        RemoteSessionService(store, certs, bus, client_factory=lambda p: clients[p.id], **options),
+        store,
+        bus,
+    )
+
+
+async def test_switch_from_pending_offline_tv_connects_without_waiting(tmp_path: Path) -> None:
+    offline, online = PendingRemoteClient(), FakeRemoteClient()
+    session, store, _ = session_with_clients(tmp_path, {"offline": offline, "online": online})
+    first = asyncio.create_task(session.select_tv("offline"))
+    await offline.started.wait()
+    try:
+        await asyncio.wait_for(session.select_tv("online"), timeout=0.5)
+        assert session.state == ConnectionState.CONNECTED
+        assert session.current_profile is not None and session.current_profile.id == "online"
+        assert store.get_last_selected_id() == "online"
+        assert offline.disconnected and offline.cancelled.is_set()
+        session.send_key(RemoteKey.DPAD_UP)
+        assert online.sent_keys == ["KEYCODE_DPAD_UP"]
+    finally:
+        session.disconnect()
+        first.cancel()
+        await asyncio.gather(first, return_exceptions=True)
+
+
+async def test_callbacks_from_replaced_client_are_ignored(tmp_path: Path) -> None:
+    old, current = FakeRemoteClient(), FakeRemoteClient()
+    session, _, _ = session_with_clients(tmp_path, {"old": old, "current": current})
+    await session.select_tv("old")
+    await session.select_tv("current")
+    old._is_available_cbs[0](False)
+    assert session.state == ConnectionState.CONNECTED
+    assert old._invalid_auth_cb is not None
+    old._invalid_auth_cb()
+    old._current_app_cbs[0]("old.app")
+    old._volume_cbs[0]({"level": 90, "max": 100, "muted": False})
+    old._is_on_cbs[0](False)
+    assert session.state == ConnectionState.CONNECTED
+    assert session.current_app is None and session.volume is None and session.is_on is None
+    session.disconnect()
+    current._is_available_cbs[0](True)
+    assert session.state == ConnectionState.IDLE
+
+
+async def test_pending_connection_times_out_and_can_retry(tmp_path: Path) -> None:
+    pending = PendingRemoteClient()
+    clients: dict[str, FakeRemoteClient] = {"tv": pending}
+    session, _, _ = session_with_clients(tmp_path, clients, connect_timeout=0.02)
+    await session.select_tv("tv")
+    assert session.state == ConnectionState.OFFLINE
+    assert pending.disconnected and pending.cancelled.is_set()
+    clients["tv"] = FakeRemoteClient()
+    await session.retry_connection()
+    assert session.state == ConnectionState.CONNECTED
+    session.disconnect()
+
+
+async def test_disconnect_cancels_pending_connection(tmp_path: Path) -> None:
+    pending = PendingRemoteClient()
+    session, _, _ = session_with_clients(tmp_path, {"tv": pending})
+    task = asyncio.create_task(session.select_tv("tv"))
+    await pending.started.wait()
+    try:
+        session.disconnect()
+        await asyncio.wait_for(asyncio.shield(task), 0.5)
+        assert pending.cancelled.is_set()
+        assert session.state == ConnectionState.IDLE
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+async def test_dhcp_change_replaces_active_client(tmp_path: Path) -> None:
+    old, replacement = FakeRemoteClient(), FakeRemoteClient()
+    clients = {"tv": old}
+    session, store, _ = session_with_clients(tmp_path, clients)
+    await session.select_tv("tv")
+    profile = store.get_tv("tv")
+    assert profile is not None
+    updated = profile.with_host("192.168.1.42")
+    store.save_tv(updated)
+    clients["tv"] = replacement
+    session.handle_ip_updated(updated)
+    await asyncio.gather(*session._background_tasks)
+    assert old.disconnected and replacement.connected
+    assert session.current_profile is not None and session.current_profile.host == updated.host
+    session.disconnect()
+
+
+async def test_reselecting_connected_tv_republishes_current_state(tmp_path: Path) -> None:
+    client = FakeRemoteClient()
+    session, _, bus = session_with_clients(tmp_path, {"tv": client})
+    await session.select_tv("tv")
+    states: list[ConnectionState] = []
+    bus.on_state(lambda state, _profile: states.append(state))
+    await session.select_tv("tv")
+    assert states == [ConnectionState.CONNECTED]
+    assert not client.disconnected
+    session.disconnect()

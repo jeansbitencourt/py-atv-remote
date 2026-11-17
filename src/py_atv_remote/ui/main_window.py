@@ -454,6 +454,11 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self._selected_tv_id:
             return
         tv_id = self._selected_tv_id
+        self._status_bar.update_current_app(None)
+        self._status_bar.update_volume(None)
+        self._status_bar.update_state(ConnectionState.CONNECTING)
+        self._update_controls_state(ConnectionState.CONNECTING)
+        self._pairing_banner.setVisible(False)
         self._runner.submit(self._session.select_tv(tv_id))
 
     def _send_key(self, key: RemoteKey) -> None:
@@ -480,6 +485,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.show()
 
     def _on_state_event(self, state: ConnectionState, profile: TvProfile | None) -> None:
+        if profile is not None and profile.id != self._selected_tv_id:
+            return
+        if profile is None and self._session.current_profile is not None:
+            return
         self._status_bar.update_state(state)
         self._update_controls_state(state)
 

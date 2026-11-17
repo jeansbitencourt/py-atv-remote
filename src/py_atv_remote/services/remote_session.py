@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from typing import TypeVar
 
 from androidtvremote2 import VolumeInfo
 
@@ -20,6 +21,8 @@ from py_atv_remote.services.events import EventBus
 
 LOGGER = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 
 class RemoteSessionService:
     """Coordinates the persistent connection and control commands for the currently selected TV."""
@@ -31,6 +34,7 @@ class RemoteSessionService:
         event_bus: EventBus,
         client_factory: Callable[[TvProfile], RemoteClient] | None = None,
         wol_sender: Callable[[str], None] | None = None,
+        connect_timeout: float = 15.0,
     ) -> None:
         self._config_store = config_store
         self._cert_store = cert_store
@@ -42,6 +46,8 @@ class RemoteSessionService:
         self._state: ConnectionState = ConnectionState.IDLE
         self._client: RemoteClient | None = None
         self._lock = asyncio.Lock()
+        self._connect_timeout = connect_timeout
+        self._connect_task: asyncio.Task[None] | None = None
         self._background_tasks: set[asyncio.Task[None]] = set()
 
         self._volume: VolumeState | None = None
@@ -88,62 +94,99 @@ class RemoteSessionService:
         self._event_bus.emit_state(state, self._current_profile)
 
     async def select_tv(self, tv_id: str) -> None:
-        """Select a TV by ID and establish a persistent TLS session."""
+        """Replace the active attempt without holding a lock during network I/O."""
         async with self._lock:
             profile = self._config_store.get_tv(tv_id)
             if profile is None:
                 raise TvNotFoundError(f"TV profile with ID '{tv_id}' not found.")
-
             if (
                 self._current_profile
                 and self._current_profile.id == tv_id
+                and self._current_profile.host == profile.host
                 and self._client is not None
                 and self._state in (ConnectionState.CONNECTED, ConnectionState.CONNECTING)
             ):
-                LOGGER.info("TV %s is already active.", tv_id)
+                # A refreshed selector may already be displaying CONNECTING.
+                self._set_state(self._state)
                 return
-
             self._disconnect_locked()
             self._current_profile = profile
             self._config_store.set_last_selected_id(tv_id)
-
             if not self._cert_store.has_certs(tv_id):
-                LOGGER.info("TV %s has no certificates yet, requires pairing.", tv_id)
                 self._set_state(ConnectionState.NEEDS_PAIRING)
                 return
-
             self._set_state(ConnectionState.CONNECTING)
+            task = asyncio.create_task(self._connect(profile))
+            self._connect_task = task
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+
+        try:
+            await task
+        except asyncio.CancelledError:
+            if self._connect_task is task:
+                # Cancellation by the caller, rather than by a newer selection.
+                self._disconnect_locked()
+                raise
+
+    async def _connect(self, profile: TvProfile) -> None:
+        client: RemoteClient | None = None
+        try:
             client = self._client_factory(profile)
             self._client = client
             self._setup_callbacks(client)
-
-            try:
-                await client.connect()
-                client.keep_reconnecting(invalid_auth_callback=self._on_invalid_auth)
-                self._cert_store.secure_permissions(profile.id)
-                self._set_state(ConnectionState.CONNECTED)
-                LOGGER.info("Connected to TV '%s' (%s)", profile.name, profile.host)
-
-                # Learn hardware WoL MAC from ARP table if missing
-                if not profile.wol_mac:
-                    learned_mac = lookup_mac_for_ip(profile.host)
-                    if learned_mac:
-                        LOGGER.info("Learned WoL MAC for '%s': %s", profile.name, learned_mac)
-                        profile = profile.with_wol_mac(learned_mac)
-                        self._current_profile = profile
-                        self._config_store.save_tv(profile)
-            except PairingRequiredError:
-                LOGGER.warning("TV '%s' rejected auth; pairing required.", profile.name)
+            await asyncio.wait_for(client.connect(), timeout=self._connect_timeout)
+            if self._client is not client:
+                return
+            client.keep_reconnecting(
+                invalid_auth_callback=lambda: (
+                    self._on_invalid_auth() if self._client is client else None
+                )
+            )
+            self._cert_store.secure_permissions(profile.id)
+            self._set_state(ConnectionState.CONNECTED)
+            LOGGER.info("Connected to TV '%s' (%s)", profile.name, profile.host)
+            if not profile.wol_mac:
+                learned_mac = lookup_mac_for_ip(profile.host)
+                if learned_mac:
+                    profile = profile.with_wol_mac(learned_mac)
+                    self._current_profile = profile
+                    self._config_store.save_tv(profile)
+        except PairingRequiredError:
+            if self._client is client:
+                self._release_client()
                 self._set_state(ConnectionState.NEEDS_PAIRING)
-            except TvUnreachableError as exc:
+        except (TvUnreachableError, TimeoutError) as exc:
+            if self._client is client:
                 LOGGER.warning("TV '%s' unreachable: %s", profile.name, exc)
+                self._release_client()
                 self._set_state(ConnectionState.OFFLINE)
+        except Exception as exc:
+            if self._client is client:
+                LOGGER.exception("Failed to connect to TV '%s'", profile.name)
+                self._release_client()
+                self._set_state(ConnectionState.OFFLINE)
+                self._event_bus.emit_error("Não foi possível conectar à TV selecionada.", exc)
+        finally:
+            if client is not None and client is not self._client:
+                # Cancellation may finish after a newer connection has already started.
+                try:
+                    client.disconnect()
+                except Exception as exc:
+                    LOGGER.debug("Error releasing replaced client: %s", exc)
 
     def _setup_callbacks(self, client: RemoteClient) -> None:
-        client.add_is_on_updated_callback(self._on_is_on_updated)
-        client.add_current_app_updated_callback(self._on_current_app_updated)
-        client.add_volume_info_updated_callback(self._on_volume_info_updated)
-        client.add_is_available_updated_callback(self._on_is_available_updated)
+        def guard(callback: Callable[[T], None]) -> Callable[[T], None]:
+            def invoke(value: T) -> None:
+                if self._client is client:
+                    callback(value)
+
+            return invoke
+
+        client.add_is_on_updated_callback(guard(self._on_is_on_updated))
+        client.add_current_app_updated_callback(guard(self._on_current_app_updated))
+        client.add_volume_info_updated_callback(guard(self._on_volume_info_updated))
+        client.add_is_available_updated_callback(guard(self._on_is_available_updated))
 
     def _on_is_on_updated(self, is_on: bool) -> None:
         self._is_on = is_on
@@ -224,7 +267,6 @@ class RemoteSessionService:
         """Handle dynamic IP change notification for the active profile."""
         if self._current_profile and self._current_profile.id == updated_profile.id:
             LOGGER.info("Active TV changed IP to %s. Reconnecting...", updated_profile.host)
-            self._current_profile = updated_profile
             task = asyncio.create_task(self.select_tv(updated_profile.id))
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
@@ -233,14 +275,19 @@ class RemoteSessionService:
         """Disconnect the active TV session."""
         self._disconnect_locked()
 
-    def _disconnect_locked(self) -> None:
-        if self._client is not None:
+    def _release_client(self) -> None:
+        client, self._client = self._client, None
+        if client is not None:
             try:
-                self._client.disconnect()
+                client.disconnect()
             except Exception as exc:
                 LOGGER.debug("Error disconnecting client: %s", exc)
-            self._client = None
 
+    def _disconnect_locked(self) -> None:
+        task, self._connect_task = self._connect_task, None
+        if task is not None and not task.done():
+            task.cancel()
+        self._release_client()
         self._current_profile = None
         self._volume = None
         self._current_app = None
