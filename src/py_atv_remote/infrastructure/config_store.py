@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from py_atv_remote.domain.models import AppShortcut, TvProfile
+from py_atv_remote.domain.preview import QUALITY_PRESETS, PreviewSettings
 from py_atv_remote.infrastructure.paths import AppPaths
 
 LOGGER = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ DEFAULT_APP_SHORTCUTS: list[AppShortcut] = [
 class ConfigStore:
     """Manages reading, modifying, and atomically persisting application configuration."""
 
-    CURRENT_SCHEMA_VERSION = 2
+    CURRENT_SCHEMA_VERSION = 3
 
     def __init__(self, paths: AppPaths) -> None:
         self._paths = paths
@@ -49,6 +50,7 @@ class ConfigStore:
     def _default_config(self) -> dict[str, Any]:
         return {
             "schema_version": self.CURRENT_SCHEMA_VERSION,
+            "preview": {},
             "client_name": self._default_client_name(),
             "last_selected_id": None,
             "tvs": {},
@@ -107,6 +109,12 @@ class ConfigStore:
                     ]
             data["schema_version"] = 2
             self._save_to_disk(data)
+        if version < 3:
+            data.setdefault("preview", {})
+            data["schema_version"] = 3
+            self._save_to_disk(data)
+        if not isinstance(data.get("preview"), dict):
+            data["preview"] = {}
         return data
 
     def _save_to_disk(self, data: dict[str, Any]) -> None:
@@ -191,6 +199,7 @@ class ConfigStore:
             tvs = self._data.get("tvs", {})
             if tv_id in tvs:
                 del tvs[tv_id]
+                self._data.get("preview", {}).pop(tv_id, None)
                 if self._data.get("last_selected_id") == tv_id:
                     self._data["last_selected_id"] = None
                 self._save_to_disk(self._data)
@@ -211,6 +220,38 @@ class ConfigStore:
             self._data["app_shortcuts"] = [
                 {"label": item.label, "link": item.link} for item in shortcuts
             ]
+            self._save_to_disk(self._data)
+
+    def get_preview_settings(self, tv_id: str) -> PreviewSettings:
+        """Read preview settings independently of mutable remote profiles."""
+        with self._lock:
+            raw = self._data.get("preview", {}).get(tv_id, {})
+            if not isinstance(raw, dict):
+                return PreviewSettings()
+            return PreviewSettings(
+                enabled=raw.get("enabled") is True,
+                endpoint=str(raw.get("endpoint", "")),
+                mode="tcpip_legacy" if raw.get("mode") == "tcpip_legacy" else "wireless_tls",
+                identity=str(raw.get("identity", "")),
+                quality=str(raw["quality"])
+                if isinstance(raw.get("quality"), str) and raw["quality"] in QUALITY_PRESETS
+                else "balanced",
+            )
+
+    def set_preview_settings(self, tv_id: str, settings: PreviewSettings) -> None:
+        """Persist settings only for a TV which still exists."""
+        from dataclasses import asdict
+
+        with self._lock:
+            if tv_id not in self._data.get("tvs", {}):
+                return
+            self._data.setdefault("preview", {})[tv_id] = asdict(settings)
+            self._save_to_disk(self._data)
+
+    def forget_preview_settings(self, tv_id: str) -> None:
+        """Forget local metadata without revoking authorization on the TV."""
+        with self._lock:
+            self._data.get("preview", {}).pop(tv_id, None)
             self._save_to_disk(self._data)
 
     # Serialization Helpers

@@ -43,6 +43,7 @@ def main_window(
         open_device_manager=lambda: None,
         open_shortcuts_dialog=lambda: None,
     )
+    window._runner.is_running = False
     window._send_key = sent_keys.append  # type: ignore[method-assign]
     window.show()
     qapp.processEvents()

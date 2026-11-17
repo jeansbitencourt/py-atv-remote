@@ -3,18 +3,22 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 from py_atv_remote.domain.keys import RemoteKey
 from py_atv_remote.domain.models import ConnectionState, TvProfile, VolumeState
+from py_atv_remote.domain.preview import PreviewEvent, PreviewState
 from py_atv_remote.infrastructure.config_store import ConfigStore
 from py_atv_remote.services.async_runner import AsyncRunner
 from py_atv_remote.services.events import EventBus
+from py_atv_remote.services.preview_service import PreviewService
 from py_atv_remote.services.remote_session import RemoteSessionService
 from py_atv_remote.ui.keybindings import handle_key_event
 from py_atv_remote.ui.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
+from py_atv_remote.ui.preview_dialog import PreviewDialog
+from py_atv_remote.ui.qt_dispatcher import QtDispatcher
 from py_atv_remote.ui.widgets.dpad import DPad
 from py_atv_remote.ui.widgets.repeat_button import RepeatButton
 from py_atv_remote.ui.widgets.status_bar import StatusBar
@@ -34,12 +38,19 @@ class MainWindow(QtWidgets.QMainWindow):
         open_device_manager: Callable[[], None],
         open_shortcuts_dialog: Callable[[], None],
         parent: QtWidgets.QWidget | None = None,
+        prepare_shutdown: Callable[[], Coroutine[object, object, None]] | None = None,
     ) -> None:
         super().__init__(parent)
         self._config_store = config_store
         self._session = remote_session
         self._event_bus = event_bus
         self._runner = async_runner
+        self._preview_dispatcher = QtDispatcher(self)
+        self.preview = PreviewService(config_store, self._preview_dispatcher)
+        self._preview_unsubscribe = self.preview.subscribe(self._on_preview_event)
+        self._closing = False
+        self._close_ready = False
+        self._prepare_shutdown = prepare_shutdown
         self._open_device_manager = open_device_manager
         self._open_shortcuts_dialog = open_shortcuts_dialog
         self._application = QtWidgets.QApplication.instance()
@@ -78,7 +89,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._tv_selector = QtWidgets.QComboBox(self)
         self._tv_selector.setFixedHeight(32)
-        self._tv_selector.currentTextChanged.connect(self._on_tv_option_selected)
+        self._tv_selector.currentIndexChanged.connect(self._on_tv_option_selected)
         header_layout.addWidget(self._tv_selector, stretch=1)
 
         self._btn_add_tv = QtWidgets.QPushButton("+", self)
@@ -99,6 +110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._action_always_top.triggered.connect(self._toggle_always_on_top)
         self._options_menu.addAction(self._action_always_top)
 
+        self._options_menu.aboutToShow.connect(self._refresh_preview_actions)
         self._options_menu.addSeparator()
 
         action_manage = QtGui.QAction("Gerenciar TVs…", self)
@@ -112,6 +124,17 @@ class MainWindow(QtWidgets.QMainWindow):
         action_keyboard_shortcuts = QtGui.QAction("Consultar Atalhos do Teclado…", self)
         action_keyboard_shortcuts.triggered.connect(self._show_keyboard_shortcuts)
         self._options_menu.addAction(action_keyboard_shortcuts)
+
+        preview_menu = self._options_menu.addMenu("Visualização da TV")
+        assert preview_menu is not None
+        preview_menu.addAction("Configurar e ativar…", self._configure_preview)
+        self._action_preview_open = preview_menu.addAction(
+            "Abrir visualização", self._start_preview
+        )
+        preview_menu.addAction(
+            "Fechar visualização", lambda: self._runner.submit(self.preview.stop())
+        )
+        preview_menu.addAction("Como habilitar na TV…", self._preview_help)
 
         self._btn_menu.setMenu(self._options_menu)
         header_layout.addWidget(self._btn_menu)
@@ -271,7 +294,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._tv_selector.blockSignals(True)
         self._tv_selector.clear()
         if names:
-            self._tv_selector.addItems(names)
+            for tv in self._tvs:
+                self._tv_selector.addItem(tv.name, tv.id)
         else:
             self._tv_selector.addItem("Nenhuma TV cadastrada")
 
@@ -300,12 +324,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refresh_tvs(self, selected_tv_id: str | None = None) -> None:
         """Reload the list of saved TVs in the selector dropdown."""
+        self._runner.submit(self.preview.stop())
         self._tvs = self._config_store.list_tvs()
         names = [tv.name for tv in self._tvs]
         self._tv_selector.blockSignals(True)
         self._tv_selector.clear()
         if names:
-            self._tv_selector.addItems(names)
+            for tv in self._tvs:
+                self._tv_selector.addItem(tv.name, tv.id)
         else:
             self._tv_selector.addItem("Nenhuma TV cadastrada")
 
@@ -356,6 +382,60 @@ class MainWindow(QtWidgets.QMainWindow):
             btn.clicked.connect(self._make_launch_handler(link_target))
             self._shortcuts_layout.addWidget(btn, row, col, 1, span)
 
+    def _preview_help(self) -> None:
+        QtWidgets.QMessageBox.information(
+            self,
+            "Depuração na TV",
+            "Na TV, abra Configurações → Sobre e pressione várias vezes o número da "
+            "compilação. Nas Opções do desenvolvedor, habilite Depuração sem fio. "
+            "Escolha Parear com código. A porta de pareamento é diferente da porta "
+            "de conexão. Em TVs antigas, procure Depuração pela rede (porta usual 5555). "
+            "Use uma rede confiável. Conteúdo protegido pode aparecer preto.",
+        )
+
+    def _configure_preview(self) -> None:
+        tv_id = self._selected_tv_id
+        if not tv_id:
+            return
+        profile = next((tv for tv in self._tvs if tv.id == tv_id), None)
+        if profile is None:
+            return
+        self._runner.submit(self.preview.stop())
+        dialog = PreviewDialog(
+            self, profile, self._config_store, self._runner, self._preview_dispatcher
+        )
+        if (
+            dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted
+            and dialog.confirmed_without_identity
+        ):
+            settings = self._config_store.get_preview_settings(tv_id)
+            self._runner.submit(self.preview.confirm_unidentified_once(tv_id, settings.endpoint))
+
+    def _refresh_preview_actions(self) -> None:
+        settings = self._config_store.get_preview_settings(self._selected_tv_id or "")
+        if self._action_preview_open is not None:
+            self._action_preview_open.setEnabled(settings.enabled and bool(self._selected_tv_id))
+
+    def _on_preview_event(self, event: PreviewEvent) -> None:
+        if self._closing or event.tv_id != self._selected_tv_id:
+            return
+        if event.state == PreviewState.ERROR:
+            QtWidgets.QMessageBox.warning(self, "Visualização da TV", event.message)
+        if self._action_preview_open is not None:
+            self._action_preview_open.setText(
+                "Visualização em andamento…"
+                if event.state in (PreviewState.PREPARING, PreviewState.RUNNING)
+                else "Abrir visualização"
+            )
+
+    def _start_preview(self) -> None:
+        if self._selected_tv_id:
+            settings = self._config_store.get_preview_settings(self._selected_tv_id)
+            if not settings.identity:
+                self._configure_preview()
+            if self._config_store.get_preview_settings(self._selected_tv_id).enabled:
+                self._runner.submit(self.preview.start(self._selected_tv_id))
+
     def _make_launch_handler(self, link: str) -> Callable[[], None]:
         return lambda: self._session.launch_app(link)
 
@@ -363,12 +443,12 @@ class MainWindow(QtWidgets.QMainWindow):
         dialog = KeyboardShortcutsDialog(self)
         dialog.exec()
 
-    def _on_tv_option_selected(self, chosen_name: str) -> None:
-        for tv in self._tvs:
-            if tv.name == chosen_name:
-                self._selected_tv_id = tv.id
-                self._connect_to_selected_tv()
-                break
+    def _on_tv_option_selected(self, _index: int) -> None:
+        tv_id = self._tv_selector.currentData()
+        if isinstance(tv_id, str):
+            self._runner.submit(self.preview.stop())
+            self._selected_tv_id = tv_id
+            self._connect_to_selected_tv()
 
     def _connect_to_selected_tv(self) -> None:
         if not self._selected_tv_id:
@@ -476,6 +556,29 @@ class MainWindow(QtWidgets.QMainWindow):
         return handled or super().eventFilter(watched, event)
 
     def closeEvent(self, event: QtGui.QCloseEvent | None) -> None:
+        if event is None:
+            return
+        if not self._close_ready and self._runner.is_running:
+            event.ignore()
+            if not self._closing:
+                self._closing = True
+                self.setEnabled(False)
+
+                async def finish() -> None:
+                    try:
+                        await self.preview.stop()
+                        if self._prepare_shutdown is not None:
+                            await self._prepare_shutdown()
+                    finally:
+                        self._preview_dispatcher.post(self._finish_close)
+
+                self._runner.submit(finish())
+            return
+        self._preview_unsubscribe()
         if self._application is not None:
             self._application.removeEventFilter(self)
         super().closeEvent(event)
+
+    def _finish_close(self) -> None:
+        self._close_ready = True
+        self.close()

@@ -269,6 +269,7 @@ class App:
         self.runner.submit(self.discovery.start())
 
         # 5. UI Window
+        self._shutdown_prepared = False
         self.main_window = MainWindow(
             config_store=self.config_store,
             remote_session=self.session,
@@ -276,6 +277,7 @@ class App:
             async_runner=self.runner,
             open_device_manager=self.open_device_manager,
             open_shortcuts_dialog=self.open_shortcuts_dialog,
+            prepare_shutdown=self.prepare_shutdown,
         )
 
         self.qapp.aboutToQuit.connect(self.shutdown)
@@ -315,21 +317,27 @@ class App:
         self.main_window.show()
         return self.qapp.exec()
 
+    async def prepare_shutdown(self) -> None:
+        """Release network resources while Qt remains responsive."""
+        self.session.disconnect()
+        await self.discovery.stop()
+        self._shutdown_prepared = True
+
     def shutdown(self) -> None:
-        """Gracefully release network connections, cancel tasks, and close window."""
+        """Stop the runner after normal asynchronous window cleanup."""
         LOGGER.info("Shutting down py-atv-remote...")
-        with contextlib.suppress(Exception):
-            self.session.disconnect()
-
-        try:
-            future = self.runner.submit(self.discovery.stop())
-            future.result(timeout=1.0)
-        except Exception:
-            pass
-
+        if not self._shutdown_prepared:
+            with contextlib.suppress(Exception):
+                future = self.runner.submit(self._emergency_cleanup())
+                future.result(timeout=5)
         self.dispatcher.stop()
         self.runner.stop(timeout=2.0)
         LOGGER.info("Shutdown complete.")
+
+    async def _emergency_cleanup(self) -> None:
+        """Handle external application quit paths that bypass the window."""
+        await self.main_window.preview.stop()
+        await self.prepare_shutdown()
 
     @staticmethod
     def _setup_logging(debug: bool) -> None:
