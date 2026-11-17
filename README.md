@@ -54,6 +54,14 @@ uv run python main.py
 
 ### Opção 2: Instalar no menu de aplicativos do Linux (.desktop)
 
+Após clonar o projeto, execute o instalador **sem sudo** em Linux x86_64:
+
+O script instala o `uv` se necessário, obtém Python 3.13, baixa e verifica ADB/scrcpy
+oficiais, gera o pacote e instala o aplicativo com suas dependências Python e atalho.
+Você não precisa gerar nem baixar um wheel manualmente. É necessário acesso à
+internet na primeira instalação e `curl` ou `wget` se o `uv` ainda não estiver instalado.
+O wheel é apenas o formato de pacote usado internamente nessa instalação.
+
 Para integrar o aplicativo ao menu do sistema (KDE Plasma, GNOME, etc.):
 
 ```bash
@@ -61,6 +69,21 @@ Para integrar o aplicativo ao menu do sistema (KDE Plasma, GNOME, etc.):
 ```
 
 Após a execução, o **py-atv-remote** estará disponível no lançador de aplicativos com ícone próprio e poderá ser aberto pelo terminal como `py-atv-remote`.
+
+Para instalar o controle sem incluir ADB/scrcpy:
+
+```bash
+./scripts/install-desktop.sh --without-preview
+```
+
+Também é possível fornecer um release oficial já baixado (`--archive arquivo.tar.gz`)
+ou um pacote `.whl` existente como argumento. Releases fornecidos são verificados
+pelo SHA-256 fixado no projeto. Execute o script novamente para atualizar a instalação.
+
+As ferramentas incluídas suportam **Linux x86_64 com glibc e desktop gráfico**.
+Não há garantia de funcionamento em toda distribuição Linux; ARM, Alpine/musl e
+bibliotecas gráficas incompatíveis exigem suporte específico. O script não instala
+drivers nem pacotes do sistema com privilégios administrativos.
 
 Para desinstalar os atalhos do sistema:
 ```bash
@@ -112,6 +135,55 @@ python3 main.py
 Os atalhos funcionam quando a janela principal está ativa, mesmo que um botão esteja com foco. No campo de texto, as teclas continuam editando o texto; `Enter` envia o texto e `Escape` tira o foco do campo. Menus, seletores abertos e diálogos mantêm o comportamento normal.
 
 Também é possível consultar essa lista no menu de opções, em **Consultar Atalhos do Teclado…**.
+
+---
+
+## Visualização opcional da TV
+
+No menu **⚙ → Visualização da TV → Configurar e ativar…**, ative o recurso para a
+TV selecionada. O controle remoto normal continua funcionando sem ADB.
+
+1. Na TV, habilite Opções do desenvolvedor (em Sobre, pressione várias vezes o
+   número da compilação). Abra **Depuração sem fio → Parear com código**.
+2. No app, informe o endereço/porta de pareamento e o código de seis dígitos.
+3. Clique em **Parear com código**. O app tenta descobrir a porta de conexão por
+   mDNS; se não encontrar, informe a porta da tela principal de Depuração sem fio.
+   **A porta de conexão é diferente da porta de pareamento.**
+4. Clique em **Conectar e confirmar TV…**, confira modelo/endereço e salve com a
+   ativação marcada.
+5. No menu, escolha **Abrir visualização**. A janela externa do scrcpy exibe a TV
+   sem áudio nem comandos. Use a janela principal para controlar a TV.
+
+Para TV já pareada, basta descobrir/informar a porta de conexão e confirmar a TV.
+Em aparelhos antigos, escolha **ADB TCP/IP tradicional** e informe a porta de
+rede habilitada pelo aparelho (5555 é apenas uma sugestão). Autorize o computador
+na TV, se solicitado. Depuração USB sozinha pode não habilitar acesso pela rede.
+Os nomes dos menus variam por fabricante.
+
+O menu inclui ajuda e verificação das ferramentas. O recurso fica desativado por
+padrão e é configurado individualmente por TV. Para desativar, desmarque a ativação
+e salve. **Esquecer configuração local** não revoga a autorização na TV; faça isso
+em Depuração sem fio → Dispositivos pareados → Esquecer.
+
+Uma única janela de visualização fica ativa. Trocar a TV ou sair do app encerra a
+visualização anterior. Fechar somente a janela scrcpy mantém o controle funcionando.
+Se o aparelho não informar identificador estável, será preciso confirmar a TV a
+cada abertura. O app não grava vídeo, screenshots, chaves ADB ou códigos de pareamento;
+as credenciais do computador são gerenciadas pelo próprio ADB.
+
+Use uma rede confiável. Redes guest/VLAN e isolamento Wi-Fi podem impedir conexão
+ou mDNS. Conteúdo protegido pode aparecer preto; problemas de encoder ou rede
+também podem causar falha. O recurso não contorna DRM. IPv6 não é suportado nesta versão.
+
+### Ferramentas e pacote local
+
+Linux x86_64: o pacote de validação pode incluir ADB e scrcpy, sem instalação global.
+Veja [como gerar o pacote](packaging/PREVIEW_DISTRIBUTION.md). Executando pelo código,
+também é possível usar `adb` e `scrcpy` no PATH ou os caminhos absolutos definidos em
+`PY_ATV_REMOTE_ADB` e `PY_ATV_REMOTE_SCRCPY` (sobrepõem a seleção automática).
+Não há downloads ao abrir a visualização. O app não encerra o servidor ADB compartilhado.
+
+**Validação em TV real, distribuição limpa e ambientes gráficos ainda pendente.**
 
 ---
 
